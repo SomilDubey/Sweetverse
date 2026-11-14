@@ -1,0 +1,157 @@
+[
+ {
+  "test": "Splash -> main menu",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Daily reward claim adds coins",
+  "result": "PASS",
+  "note": "100->150"
+ },
+ {
+  "test": "Daily reward cannot be claimed twice",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Booster inventory: buy Magic Swap with coins",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Profile: rename + avatar",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Locked level cannot be opened",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Valid swap (mouse drag)",
+  "result": "PASS",
+  "note": "moves 15->14 score 0->180"
+ },
+ {
+  "test": "Board refilled, stable after cascades",
+  "result": "PASS",
+  "note": "matches left 0, empty 0, tiles 64"
+ },
+ {
+  "test": "Valid swap (touch swipe)",
+  "result": "PASS",
+  "note": "moves 14->13"
+ },
+ {
+  "test": "Invalid swap rejected, no move used",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Tap-to-select then tap neighbour swaps",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Four-match creates a Rocket (live UI)",
+  "result": "PASS",
+  "note": "specials on board 1"
+ },
+ {
+  "test": "Special + special combo fires (Mega Blast XL)",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Hammer booster",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Colour Blast booster",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Magic Swap booster (no move used)",
+  "result": "PASS",
+  "note": "tiles [255, 88]->[88, 255]"
+ },
+ {
+  "test": "Shuffle booster",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Extra Moves booster",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Booster mode can be cancelled",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Pause and resume",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Restart (with confirmation)",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Level completion: victory screen, stars, coins",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Achievement unlocked on first win",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Level failure: defeat screen",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Retry after failure",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Chocolate visible on level 20",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Particle pool empties when idle (no growth)",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Landscape layout fits screen",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "No page scroll during gameplay",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Save and restore after reload (localStorage)",
+  "result": "PASS",
+  "note": "[2,{\"1\":3},\"Somil\",368]"
+ },
+ {
+  "test": "No console errors",
+  "result": "PASS",
+  "note": ""
+ }
+]

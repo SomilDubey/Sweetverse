@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#6a2cc4">
+<title>Sweetverse – Match &amp; Magic</title>
+<!-- SWEETVERSE playable prototype. Built 2026-11-14 (v0.3). -->
+<style>/*CSS*/</style>
+</head>
+<body>
+<section id="splash" class="screen">
+  <div class="bg"></div><div class="sparkles"></div>
+  <div class="pipBig">🧚</div>
+  <div class="logo">SWEET<br>VERSE</div>
+  <div class="sub">Match &amp; Magic</div>
+  <div id="loadBar"><div id="loadFill"></div></div>
+  <div id="tapStart" class="hidden">Tap to start</div>
+  <div class="studio">An original prototype · v0.3</div>
+</section>
+
+<section id="home" class="screen hidden">
+  <div class="bg"></div><div class="sparkles"></div>
+  <div class="homeTop">
+    <button class="who" id="profileBtn2" onclick="document.getElementById('profileBtn').click()"><span class="av0" id="homeAvatar">🧁</span><span id="homeName">Sweet Player</span></button>
+    <div class="pill">🪙 <span class="coinVal">0</span> · ⭐ <span id="homeStars">0</span></div>
+  </div>
+  <div class="logo">SWEET<br>VERSE</div>
+  <div class="sub">Match &amp; Magic</div>
+  <button class="btn green" id="playBtn" style="font-size:26px;padding:16px 64px">Play</button>
+  <div class="menuGrid">
+    <button class="btn gold" id="dailyBtn">🎁 Daily<span class="dot hidden" id="dailyDot"></span></button>
+    <button class="btn blue" id="shopBtn">🎒 Boosters</button>
+    <button class="btn" id="profileBtn">🏆 Profile</button>
+    <button class="btn blue" id="homeSettings">⚙️ Settings</button>
+  </div>
+</section>
+
+<section id="map" class="screen hidden">
+  <div class="bg"></div><div class="sparkles"></div>
+  <div class="topbar">
+    <button class="icon-btn" id="mapHome" aria-label="Home">🏠</button>
+    <div class="title">World Map</div>
+    <div class="pill">⭐ <span id="starTotal">0</span></div>
+    <button class="icon-btn" id="mapShop" aria-label="Boosters">🎒</button>
+    <button class="icon-btn" id="mapSettings" aria-label="Settings">⚙️</button>
+  </div>
+  <div id="mapScroll"></div>
+</section>
+
+<section id="game" class="screen hidden">
+  <div class="bg" id="gameBg"></div><div class="sparkles"></div>
+  <div class="side">
+    <div class="hud">
+      <button class="icon-btn" id="pauseBtn" aria-label="Pause">⏸</button>
+      <div class="hud-box" id="movesBox"><div class="lbl" id="movesLbl">Moves</div><div class="val" id="movesVal">0</div></div>
+      <div class="hud-box scorewrap"><div class="lbl">Level <span id="lvlNum">1</span> · Score</div><div class="val" id="scoreVal">0</div>
+        <div class="starbar"><div class="fill" id="starFill"></div><div id="starMarks"></div></div>
+        <div class="target">🎯 Target <span id="targetVal">0</span></div></div>
+    </div>
+    <div class="goals" id="goalRow"></div>
+    <div class="boosters">
+      <button class="booster" id="b-hammer" aria-label="Sweet Hammer"><span class="nm">Hammer</span>🔨<span class="cnt">0</span></button>
+      <button class="booster" id="b-blast" aria-label="Colour Blast"><span class="nm">Colour</span>🎨<span class="cnt">0</span></button>
+      <button class="booster" id="b-swap" aria-label="Magic Swap"><span class="nm">Swap</span>🔄<span class="cnt">0</span></button>
+      <button class="booster" id="b-shuffle" aria-label="Shuffle Magic"><span class="nm">Shuffle</span>🔀<span class="cnt">0</span></button>
+      <button class="booster" id="b-moves" aria-label="Extra Moves"><span class="nm">+5</span>➕<span class="cnt">0</span></button>
+    </div>
+  </div>
+  <div class="boardArea">
+    <div id="boardWrap">
+      <div id="modeHint" class="modeHint hidden"><span id="modeText"></span><button id="modeCancel" aria-label="Cancel booster">✕</button></div>
+      <div id="board"><div id="tiles"></div><div id="overlay"></div><canvas id="pcan"></canvas><div id="fx"></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="profile" class="screen hidden">
+  <div class="bg"></div><div class="sparkles"></div>
+  <div class="topbar"><button class="icon-btn" id="profBack" aria-label="Back">←</button><div class="title">Player Profile</div><div class="pill">🪙 <span class="coinVal">0</span></div></div>
+  <div class="page">
+    <div class="panel"><div class="profHead"><div id="profAvatar">🧁</div><div style="flex:1"><label style="font-size:12px;font-weight:800">Your name</label><input id="profName" maxlength="16"></div></div><div id="avatarRow"></div></div>
+    <div class="panel"><h3>📊 Statistics</h3><div id="statGrid"></div></div>
+    <div class="panel"><h3>🏆 Achievements <span id="achCount"></span></h3><div id="achList"></div></div>
+  </div>
+</section>
+
+<section id="shop" class="screen hidden">
+  <div class="bg"></div><div class="sparkles"></div>
+  <div class="topbar"><button class="icon-btn" id="shopBack" aria-label="Back">←</button><div class="title">Booster Inventory</div><div class="pill">🪙 <span class="coinVal">0</span></div></div>
+  <div class="page">
+    <div class="panel"><h3>🎒 Your boosters</h3><p style="margin:0 0 6px;font-size:13px">Coins come from winning levels, daily treats and achievements. There are no real-money purchases.</p><div id="shopList"></div></div>
+  </div>
+</section>
+
+<div id="modal" class="hidden"></div>
+<script>/*ENGINE*/</script>
+<script>/*LEVELS*/</script>
+<script>/*UI*/</script>
+</body>
+</html>
