@@ -1,11 +1,12 @@
 # SWEETVERSE – Match & Magic (playable prototype)
 
-**Version:** v0.5 · **Date:** 2026-11-15
+**Version:** v0.6 · **Date:** 2026-11-15
 
 An original match-3 puzzle game that runs in any modern browser, on phone, tablet or desktop.
 It is one self-contained HTML file with no external assets, APIs or paid services.
 
 ## Changelog
+- **2026-11-15 v0.6 (phase 1: gameplay)** Gravity rework. Chocolate, crates and locked sweets now act as shelves (sweets above them stay put), locked sweets never move, cells under blockers fill by diagonal slides, holes are still passed through, and sealed areas get fresh sweets so the board never stalls. Level 27 re-tuned (+3 moves). Difficulty labels re-measured. Previous: `archive/engine.v05.js`, `archive/levels.v05.js`.
 - **2026-11-15 v0.5** Full project audit (`AUDIT.md`). Save system v2: one versioned save with a backup copy, migration from v0.1–v0.4, and recovery from corrupted data (old keys and damaged data are kept, never deleted). **Smart hint**: simulates every candidate move against the level's goals. In 216 bot games, following it wins 83% vs 4% for the old first-found hint. New 💡 hint button and an "Auto hints" setting. Audio capped at 14 simultaneous sounds with per-effect rate limiting. Previous files in `archive/` (`*.v04.*`).
 - **2026-11-15 v0.4** *Performance:* removed per-tile shadow filters and repaint-heavy glow animations (replaced with cheap equivalents), static background in gameplay, automatic **Lite graphics** mode when the frame rate is low, plus a Settings switch. *Content:* **60 levels in 6 worlds** (new: Bubblegum Bay, Fizzy Falls, Starlight Bakery). *New mechanics:* **Candy Crates** (1–3 layers, never spread), **Fizz Bombs** (countdown sweets: the level is lost if one reaches 0), **Sugar Rush finale** (leftover moves turn into rockets that all fire), **start boosters** (begin with a Rocket, Bomb or Rainbow Orb for coins), **tutorial hand** on levels 1–2, ice drawn as a clearer frosted layer, 7 new achievements, 2 new stats. Previous files in `archive/` (`*.v03.*`).
 - **2026-11-14 v0.3** Re-planned the 30 levels to the brief's six progression bands. Added chocolate blockers (1–2 layers, spreading), goals for making specials and firing combos, and two new boosters (Colour Blast, Magic Swap). New screens: splash, main menu, player profile with stats, achievements, daily reward, coins, booster inventory. Canvas particle system, volume sliders, reduced-motion mode, landscape layout, session-only storage fallback. Fixed: world background hidden behind the board; booster labels unreadable; map title wrapping.

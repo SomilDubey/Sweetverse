@@ -10,6 +10,15 @@
  * 2026-11-15  v0.5  scoreState() goal-aware board value; suggestMove() smart hint that
  *                   simulates candidate moves (cascades included) and picks the best one
  *                   for the level's goals. Previous: archive/engine.v04.js
+ * 2026-11-15  v0.6  Gravity rework. WHY: before, sweets fell straight *through* chocolate,
+ *                   crates and locked sweets, so blockers never shaped the board. Now:
+ *                   - chocolate, crates and locked sweets act as shelves: sweets above them stay put;
+ *                   - locked sweets never move;
+ *                   - cells under a blocker are filled by sweets sliding in diagonally;
+ *                   - holes are still passed through (they are gaps in the board, not blockers);
+ *                   - a cell nothing can reach (e.g. inside a closed chocolate wall) gets a fresh
+ *                     sweet so the board never stalls with empty cells.
+ *                   Previous: archive/engine.v05.js
  */
 (function (root) {
   'use strict';
@@ -415,19 +424,48 @@
     return t;
   };
 
+  P.movable = function (c) { return !!c && !this.blocked(c) && !!c.tile && !c.lock; };
+  // index of the nearest non-hole cell above (x, y), or -1 if (x, y) is the top of its column
+  P.aboveIdx = function (x, y) {
+    for (var yy = y - 1; yy >= 0; yy--) if (!this.cells[this.idx(x, yy)].hole) return this.idx(x, yy);
+    return -1;
+  };
   P.gravity = function () {
-    for (var x = 0; x < this.w; x++) {
-      var col = [], tiles = [], y, k;
-      for (y = 0; y < this.h; y++) { var i = this.idx(x, y); if (!this.blocked(this.cells[i])) col.push(i); }
-      for (k = 0; k < col.length; k++) if (this.cells[col[k]].tile) tiles.push(this.cells[col[k]].tile);
-      var empty = col.length - tiles.length;
-      if (!empty) continue;
-      for (k = 0; k < col.length; k++) this.cells[col[k]].tile = k >= empty ? tiles[k - empty] : null;
-      for (k = empty - 1; k >= 0; k--) {
-        var t = this.spawnTile();
-        this.cells[col[k]].tile = t;
-        this.events.push({ type: 'spawn', idx: col[k], id: t.id, from: this.xy(col[0])[1] + k - empty });
+    var w = this.w, h = this.h, spawned = [], pass = 0, moved = true, x, y, i, c;
+    for (x = 0; x < w; x++) spawned.push(0);
+    while (moved && pass++ < 400) {
+      moved = false;
+      for (y = h - 1; y >= 0; y--) for (x = 0; x < w; x++) {
+        i = this.idx(x, y); c = this.cells[i];
+        if (c.hole || this.blocked(c) || c.tile) continue;
+        var a = this.aboveIdx(x, y);
+        if (a < 0) {                                   // top of the column: new sweet drops in
+          var t = this.spawnTile(); c.tile = t;
+          this.events.push({ type: 'spawn', idx: i, id: t.id, from: y - 1 - spawned[x] });
+          spawned[x]++; moved = true; continue;
+        }
+        var ac = this.cells[a];
+        if (this.movable(ac)) { c.tile = ac.tile; ac.tile = null; moved = true; continue; }
+        if (!ac.tile && !this.blocked(ac)) continue;   // cell above is empty: it fills first
+        // above is a blocker or a locked sweet: slide in diagonally (alternate sides to avoid bias)
+        var dirs = (x + y + pass) % 2 ? [-1, 1] : [1, -1];
+        for (var k = 0; k < 2; k++) {
+          var nx = x + dirs[k];
+          if (nx < 0 || nx >= w || y - 1 < 0) continue;
+          var nc = this.cells[this.idx(nx, y - 1)];
+          if (!this.movable(nc)) continue;
+          var below = this.cells[this.idx(nx, y)];      // don't steal a sweet that can fall straight down
+          if (!below.hole && !this.blocked(below) && !below.tile) continue;
+          c.tile = nc.tile; nc.tile = null; moved = true; break;
+        }
       }
+    }
+    // cells nothing can reach (sealed under blockers): give them a fresh sweet
+    for (i = 0; i < this.cells.length; i++) {
+      c = this.cells[i];
+      if (c.hole || this.blocked(c) || c.tile) continue;
+      var tt = this.spawnTile(); c.tile = tt;
+      this.events.push({ type: 'spawn', idx: i, id: tt.id, from: this.xy(i)[1] - 1 });
     }
   };
   P.collectIngredients = function () {

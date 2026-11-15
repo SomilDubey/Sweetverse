@@ -3,6 +3,7 @@
  * 2026-11-14 v0.3 re-planned to brief bands: 1-5 tutorial, 6-10 obstacles & move limits,
  *                 11-15 special candies, 16-20 ice & blockers, 21-25 multi-objective,
  *                 26-30 advanced combinations. Difficulty labels measured by playtest bot.
+ * 2026-11-15 v0.6 re-tuned for new gravity: level 27 moves 30 -> 33 (bot win 25% -> see BOTWIN)
  * 2026-11-15 v0.4 levels 31-60 in three new worlds: Bubblegum Bay (candy crates),
  *                 Fizzy Falls (fizz bombs), Starlight Bakery (everything mixed). Previous: archive/levels.v03.js
  *
@@ -80,7 +81,7 @@
 
     // ---- 26-30 Advanced combinations ----
     { moves: 26, colors: 5, goals: [combo(2)], tip: 'Fire 2 special combos. Set up specials next to each other before you trigger them.' },
-    { moves: 30, colors: 5, goals: [combo(2), ICE],
+    { moves: 33, colors: 5, goals: [combo(2), ICE],
       layout: ['IIIIIIII', 'I......I', 'I......I', 'I......I', 'I......I', 'I......I', 'I......I', 'IIIIIIII'] },
     { moves: 30, colors: 5, goals: [make('rainbow', 2), CHOC],
       layout: [E8, E8, E8, E8, E8, E8, 'CCCCCCCC', 'CCCCCCCC'] },
@@ -152,8 +153,8 @@
   ];
 
   // Difficulty labels measured by the playtest bot (node test.js --bot 24) on 2026-11-14
-  var DIFF = ["Easy","Easy","Easy","Easy","Easy","Easy","Medium","Hard","Easy","Easy","Easy","Easy","Easy","Easy","Easy","Easy","Hard","Medium","Easy","Medium","Medium","Hard","Easy","Easy","Medium","Medium","Hard","Medium","Super Hard","Super Hard","Easy","Easy","Easy","Medium","Hard","Easy","Easy","Easy","Medium","Super Hard","Easy","Medium","Medium","Easy","Easy","Medium","Easy","Easy","Hard","Hard","Medium","Super Hard","Easy","Easy","Medium","Medium","Hard","Easy","Hard","Super Hard"];
-  var BOTWIN = [100,100,100,100,100,100,83,58,100,96,100,100,92,92,100,100,58,83,92,83,88,58,100,92,75,75,50,79,29,33,100,96,96,75,58,100,96,92,79,33,100,83,79,100,92,88,100,92,50,58,79,42,100,92,75,75,63,96,67,33];
+  var DIFF = ["Easy","Easy","Easy","Easy","Easy","Easy","Hard","Hard","Easy","Easy","Easy","Easy","Medium","Medium","Easy","Easy","Hard","Easy","Easy","Medium","Medium","Hard","Easy","Easy","Medium","Hard","Super Hard","Medium","Super Hard","Super Hard","Easy","Medium","Easy","Medium","Hard","Easy","Easy","Easy","Medium","Super Hard","Easy","Easy","Easy","Easy","Easy","Medium","Medium","Easy","Super Hard","Hard","Medium","Hard","Easy","Easy","Hard","Hard","Hard","Easy","Medium","Super Hard"];
+  var BOTWIN = [100,100,100,100,100,100,67,58,100,100,100,100,88,83,100,100,54,96,100,88,88,63,100,92,83,63,33,75,29,42,100,88,96,75,50,100,96,92,79,38,100,96,96,96,96,88,88,100,42,58,71,67,100,100,58,67,46,100,71,38];
 
   var LEVELS = defs.map(function (d, i) {
     var l = Object.assign({ w: 8, h: 8 }, d);

@@ -1,5 +1,6 @@
 // SWEETVERSE engine tests + playtest bot – 2026-11-14 (v0.3: chocolate, goals, new boosters)
 // 2026-11-15 v0.4: crates, fizz bombs, finale, start boosters
+// 2026-11-15 v0.6: gravity tests (shelves, diagonal fill, fixed locks, holes, sealed areas)
 // 2026-11-15 v0.5: smart hint tests; --hintcheck compares smart hint vs first-found move
 const assert = require('assert');
 const E = require('./engine.js');
@@ -226,6 +227,37 @@ test('smart hint prefers the move that serves the goal (make a Rocket)', () => {
 test('smart hint is fast enough (< 60 ms on a 9x9 board, 40 candidates)', () => {
   const g = new E.Game(LEVELS[59], 3); const t0 = Date.now(); for (let k = 0; k < 5; k++) g.suggestMove(40); const ms = (Date.now() - t0) / 5;
   assert.ok(ms < 60, ms + ' ms');
+});
+test('gravity v0.6: sweets above a crate stay put (crate is a shelf)', () => {
+  const g = new E.Game({ w: 8, h: 8, moves: 20, colors: 6, goals: [{ type: 'score', target: 1e9 }], layout: ['........','........','........','...Z....'] }, 11);
+  const aboveId = g.cells[g.idx(3, 2)].tile.id;
+  g.cells[g.idx(3, 4)].tile = null; g.collapse();
+  assert.strictEqual(g.cells[g.idx(3, 2)].tile.id, aboveId, 'sweet above the crate fell through');
+  assert.ok(g.cells[g.idx(3, 4)].tile, 'cell under the crate was not refilled');
+});
+test('gravity v0.6: cell under a blocker is filled diagonally from a neighbour column', () => {
+  const g = new E.Game({ w: 8, h: 8, moves: 20, colors: 6, goals: [{ type: 'score', target: 1e9 }], layout: ['........','........','........','...Z....'] }, 12);
+  const diag = [g.cells[g.idx(2, 3)].tile.id, g.cells[g.idx(4, 3)].tile.id];
+  g.cells[g.idx(3, 4)].tile = null; g.collapse();
+  assert.ok(diag.includes(g.cells[g.idx(3, 4)].tile.id), 'expected a diagonal slide');
+});
+test('gravity v0.6: locked sweets never move and hold up the sweets above them', () => {
+  const g = new E.Game(LEVELS[6], 5);   // level 7: rows 3-4 locked
+  const lockedId = g.cells[g.idx(2, 4)].tile.id, aboveId = g.cells[g.idx(2, 2)].tile.id;
+  g.cells[g.idx(2, 5)].tile = null; g.collapse();
+  assert.strictEqual(g.cells[g.idx(2, 4)].tile.id, lockedId, 'locked sweet moved');
+  assert.strictEqual(g.cells[g.idx(2, 2)].tile.id, aboveId, 'sweet above the lock fell through');
+});
+test('gravity v0.6: holes are still passed through', () => {
+  const g = new E.Game(LEVELS[8], 7);   // level 9 has holes at the corners
+  const id = g.cells[g.idx(2, 0)].tile.id;
+  g.cells[g.idx(2, 7)].tile = null; g.collapse();
+  assert.strictEqual(g.cells[g.idx(2, 1)].tile.id, id);
+});
+test('gravity v0.6: a sealed area (inside a chocolate wall) never stalls with empty cells', () => {
+  const g = new E.Game(LEVELS[19], 3);  // level 20: dark chocolate ring
+  const inside = g.idx(4, 4); g.cells[inside].tile = null; g.cells[g.idx(4, 3)].tile = null; g.collapse();
+  assert.ok(g.cells[inside].tile && g.cells[g.idx(4, 3)].tile);
 });
 test('fuzz: 300 random games keep invariants (stable board, no gaps, a move always exists)', () => {
   for (let s = 1; s <= 300; s++) {

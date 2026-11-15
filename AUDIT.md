@@ -34,7 +34,7 @@ Magic Garden · companion creatures · multi-stage boards · moving/changing til
 | B2 | Medium | Saves had no version number, so later upgrades had no safe migration path | **Fixed v0.5.** `sv_save` v2 with a migration hook; v0.1–v0.4 keys migrated and left in place. Browser-tested. |
 | B3 | Medium | Hint showed the first valid move found scanning from the top-left, ignoring goals | **Fixed v0.5.** Smart hint simulates moves. Following it wins 83% vs 4% (216 games). |
 | B4 | Low | Large cascades could stack dozens of overlapping sounds | **Fixed v0.5.** Max 14 voices, 45 ms per-effect rate limit. Measured max 8 in a Colour Explosion. |
-| B5 | Design | Sweets fall *through* holes, chocolate and crates instead of being blocked and sliding diagonally | Open. Needs a gravity rework, which is also the base for moving obstacles and portals. |
+| B5 | Design | Sweets fell *through* chocolate, crates and locks instead of being blocked and sliding diagonally | **Fixed v0.6.** Blockers and locks are shelves, diagonal fill, sealed-area fallback. 5 new engine tests. |
 | B6 | Low | Daily reward uses the device clock, so changing the date gives extra rewards | Open. Acceptable offline; fixing it needs a server. |
 | B7 | Low | Coins and progress are editable in browser dev tools | Open by design (local-only game, no purchases). Server validation needed only if real rewards are ever added. |
 

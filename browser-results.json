@@ -62,7 +62,7 @@
  {
   "test": "Four-match creates a Rocket (live UI)",
   "result": "PASS",
-  "note": "specials on board 1"
+  "note": "specials on board 0"
  },
  {
   "test": "Special + special combo fires (Mega Blast XL)",
@@ -82,7 +82,7 @@
  {
   "test": "Magic Swap booster (no move used)",
   "result": "PASS",
-  "note": "tiles [321, 254]->[254, 321]"
+  "note": "tiles [467, 308]->[308, 467]"
  },
  {
   "test": "Shuffle booster",
@@ -182,7 +182,7 @@
  {
   "test": "Save and restore after reload (localStorage)",
   "result": "PASS",
-  "note": "[60,{\"1\":3},\"Somil\",358]"
+  "note": "[60,{\"1\":3},\"Somil\",438]"
  },
  {
   "test": "Hint button highlights the smart move",
