@@ -1,5 +1,6 @@
 // SWEETVERSE engine tests + playtest bot – 2026-11-14 (v0.3: chocolate, goals, new boosters)
 // 2026-11-15 v0.4: crates, fizz bombs, finale, start boosters
+// 2026-11-15 v0.5: smart hint tests; --hintcheck compares smart hint vs first-found move
 const assert = require('assert');
 const E = require('./engine.js');
 const { LEVELS } = require('./levels.js');
@@ -216,6 +217,16 @@ test('start boosters place a special on a plain candy', () => {
   ['rocket', 'bomb', 'rainbow'].forEach(k => { const i = g.placeStart(k); assert.ok(i != null && g.cells[i].tile.special); });
   assert.strictEqual(g.cells.filter(c => c.tile && c.tile.special).length, 3);
 });
+test('smart hint prefers the move that serves the goal (make a Rocket)', () => {
+  // row 0: 0 0 _ 0 with a 0 below the gap -> 4-match (Rocket); elsewhere a plain 3-match is also available
+  const g = fromGrid(grid({ 0: '00304534', 1: '45045345', 5: '11211453', 6: '45345345' }), { goals: [{ type: 'make', special: 'rocket', target: 1 }] });
+  const r = g.suggestMove(); assert.ok(r, 'no suggestion');
+  const c = g.clone(); c.rng = new E.Rng(987654321); c.play(r.move[0], r.move[1]); assert.ok(c.goals[0].progress >= 1, 'hint did not make a rocket: ' + JSON.stringify(r.move.map(i => g.xy(i))));
+});
+test('smart hint is fast enough (< 60 ms on a 9x9 board, 40 candidates)', () => {
+  const g = new E.Game(LEVELS[59], 3); const t0 = Date.now(); for (let k = 0; k < 5; k++) g.suggestMove(40); const ms = (Date.now() - t0) / 5;
+  assert.ok(ms < 60, ms + ' ms');
+});
 test('fuzz: 300 random games keep invariants (stable board, no gaps, a move always exists)', () => {
   for (let s = 1; s <= 300; s++) {
     const l = LEVELS[s % LEVELS.length]; const g = new E.Game(l, s * 31);
@@ -261,5 +272,18 @@ if (process.argv.includes('--bot')) {
     console.log(`  L${String(l.id).padStart(2)}  win ${String(Math.round(rate * 100)).padStart(3)}%  avg stars ${wins ? (starSum / wins).toFixed(1) : '-'}`);
   });
   require('fs').writeFileSync(__dirname + '/bot-results.json', JSON.stringify(out));
+}
+if (process.argv.includes('--hintcheck')) {
+  const ids = [6, 8, 10, 11, 12, 14, 17, 18, 21, 24, 31, 35, 39, 42, 45, 49, 52, 57];
+  let smart = 0, naive = 0, n = 0;
+  for (const id of ids) for (let r = 0; r < 12; r++) {
+    for (const mode of ['smart', 'naive']) {
+      const g = new E.Game(LEVELS[id - 1], 500 + r * 13); let t = 0;
+      while (!g.isWon() && !g.exploded && g.moves > 0 && t++ < 60) { const m = mode === 'smart' ? g.suggestMove(40).move : g.findMove(); g.play(m[0], m[1]); }
+      if (g.isWon()) mode === 'smart' ? smart++ : naive++;
+    }
+    n++;
+  }
+  console.log(`hint check over ${n} games on ${ids.length} levels: smart hint wins ${Math.round(100 * smart / n)}%, first-found move wins ${Math.round(100 * naive / n)}%`);
 }
 process.exitCode = failed ? 1 : 0;

@@ -1,5 +1,6 @@
 # SWEETVERSE browser test – 2026-11-14 v0.3. Real input on a phone-size viewport.
 # 2026-11-15 v0.4: finale, crates, fizz bombs, start boosters, tutorial hand
+# 2026-11-15 v0.5: save migration + corruption recovery, smart hint button, audio voice cap
 import asyncio, json
 from playwright.async_api import async_playwright
 R = []
@@ -167,6 +168,35 @@ async def main():
         await pg.reload(); await pg.wait_for_timeout(500)
         after = await pg.evaluate('JSON.stringify([__sv.S.progress.unlocked,__sv.S.progress.stars,__sv.S.profile.name,__sv.S.profile.coins])')
         rec('Save and restore after reload (localStorage)', before==after, after)
+        # ---- v0.5 ----
+        await pg.click('#splash'); await pg.wait_for_timeout(300)
+        await pg.evaluate("__sv.startLevel(12); __sv.game.goals.forEach(g=>g.target=1e9)"); await pg.wait_for_timeout(700)
+        await pg.click('#hintBtn'); await pg.wait_for_timeout(300)
+        rec('Hint button highlights the smart move', await pg.evaluate("document.querySelectorAll('#tiles .tile.hint').length")==2)
+        await pg.evaluate("__sv.game.cells[__sv.game.idx(3,4)].tile=SweetEngine.tile(0,'rainbow');__sv.game.cells[__sv.game.idx(4,4)].tile=SweetEngine.tile(1,'row');window.dispatchEvent(new Event('resize'))")
+        await pg.wait_for_timeout(400)
+        await pg.evaluate("window.__maxV=0;window.__vi=setInterval(()=>{window.__maxV=Math.max(window.__maxV,__sv.voices)},5)")
+        await pg.evaluate("__sv.doSwap(__sv.game.idx(3,4),__sv.game.idx(4,4))")
+        for _ in range(80):
+            await pg.wait_for_timeout(100)
+            if not await pg.evaluate('__sv.busy'): break
+        mx = await pg.evaluate("clearInterval(window.__vi); window.__maxV")
+        rec('Audio: never more than 14 sounds at once in a big combo', 0 < mx <= 14, f'max simultaneous {mx}')
+        # migration from v0.4 per-section keys
+        await pg.evaluate("""localStorage.clear();
+          localStorage.setItem('sv_progress', JSON.stringify({unlocked:7,stars:{1:3,2:2,3:1,4:3,5:2,6:1},best:{1:5000}}));
+          localStorage.setItem('sv_profile', JSON.stringify({name:'OldSave',avatar:'🦊',coins:999}));
+          localStorage.setItem('sv_inv', JSON.stringify({hammer:9,shuffle:1,moves:4}));""")
+        await pg.reload(); await pg.wait_for_timeout(600)
+        st = await pg.evaluate("[__sv.S.progress.unlocked, __sv.S.profile.name, __sv.S.profile.coins, __sv.S.inv.hammer, __sv.S.inv.swap, !!localStorage.getItem('sv_save'), !!localStorage.getItem('sv_progress')]")
+        rec('Save migration: v0.4 progress, coins and boosters kept; new boosters get defaults; old keys kept', st==[7,'OldSave',999,9,2,True,True], str(st))
+        # corruption recovery
+        await pg.evaluate("__sv.S.profile.coins=1234; __sv.saveNow(); __sv.saveNow(); localStorage.setItem('sv_save','{broken')")
+        await pg.reload(); await pg.wait_for_timeout(600)
+        st = await pg.evaluate("[__sv.S.profile.coins, __sv.S.progress.unlocked, Object.keys(localStorage).some(k=>k.startsWith('sv_corrupt_'))]")
+        rec('Corrupted save: restored from backup, damaged copy kept', st==[1234,7,True], str(st))
+        await pg.click('#splash'); await pg.wait_for_timeout(2600)
+        rec('Player is told the save was restored', 'restored from the backup' in (await pg.evaluate("[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' ')")))
         rec('No console errors', not errs, '; '.join(errs)[:300])
         json.dump(R, open('browser-results.json','w'), indent=1)
         await b.close()

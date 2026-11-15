@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#6a2cc4">
 <title>Sweetverse – Match &amp; Magic</title>
-<!-- SWEETVERSE playable prototype. Built 2026-11-14 (v0.3); 2026-11-15 (v0.4). -->
+<!-- SWEETVERSE playable prototype. Built 2026-11-14 (v0.3); 2026-11-15 (v0.4, v0.5). -->
 <style>/* SWEETVERSE UI styles
  * 2026-11-14 v0.1 initial (archived: archive/style.v02.css)
  * 2026-11-14 v0.3 splash, menu, profile, shop, daily, toast, chocolate, landscape, reduced motion, fixes */
@@ -315,6 +315,9 @@ body.lite .sparkles{display:none}
 .iceov{position:absolute;width:var(--cs);height:var(--cs);display:none;pointer-events:none;border-radius:8px}
 .iceov.i1{display:block;background:linear-gradient(135deg,rgba(255,255,255,.42),rgba(170,225,255,.16) 45%,rgba(255,255,255,.3));box-shadow:inset 0 0 0 2px rgba(255,255,255,.85),inset 0 0 8px rgba(150,215,255,.8)}
 .iceov.i2{display:block;background:linear-gradient(135deg,rgba(255,255,255,.6),rgba(150,210,255,.35) 45%,rgba(255,255,255,.5)),repeating-linear-gradient(60deg,transparent 0 9px,rgba(255,255,255,.7) 9px 11px);box-shadow:inset 0 0 0 3px #fff,inset 0 0 10px rgba(120,200,255,.95)}
+
+/* 2026-11-15 v0.5: hint button */
+.icon-btn.hintb{background:linear-gradient(#ffe27a,#f5a400);box-shadow:0 4px 0 #b06d00,inset 0 2px 0 rgba(255,255,255,.5)}
 </style>
 </head>
 <body>
@@ -325,7 +328,7 @@ body.lite .sparkles{display:none}
   <div class="sub">Match &amp; Magic</div>
   <div id="loadBar"><div id="loadFill"></div></div>
   <div id="tapStart" class="hidden">Tap to start</div>
-  <div class="studio">An original prototype · v0.4</div>
+  <div class="studio">An original prototype · v0.5</div>
 </section>
 
 <section id="home" class="screen hidden">
@@ -362,6 +365,7 @@ body.lite .sparkles{display:none}
   <div class="side">
     <div class="hud">
       <button class="icon-btn" id="pauseBtn" aria-label="Pause">⏸</button>
+      <button class="icon-btn hintb" id="hintBtn" aria-label="Hint">💡</button>
       <div class="hud-box" id="movesBox"><div class="lbl" id="movesLbl">Moves</div><div class="val" id="movesVal">0</div></div>
       <div class="hud-box scorewrap"><div class="lbl">Level <span id="lvlNum">1</span> · Score</div><div class="val" id="scoreVal">0</div>
         <div class="starbar"><div class="fill" id="starFill"></div><div id="starMarks"></div></div>
@@ -412,6 +416,9 @@ body.lite .sparkles{display:none}
  * 2026-11-15  v0.4  candy crates (1-3 layers, never spread), fizz bombs (countdown
  *                   tiles: lose if one reaches 0), Sugar Rush finale (leftover moves
  *                   become rockets), start boosters. Previous: archive/engine.v03.js
+ * 2026-11-15  v0.5  scoreState() goal-aware board value; suggestMove() smart hint that
+ *                   simulates candidate moves (cascades included) and picks the best one
+ *                   for the level's goals. Previous: archive/engine.v04.js
  */
 (function (root) {
   'use strict';
@@ -1005,6 +1012,40 @@ body.lite .sparkles{display:none}
   };
   P.addMoves = function () { if (this.level.time) this.timeLeft += 15; else this.moves += 5; };
 
+  // Goal-aware value of the current state (higher is better). Used by smart hints and the bot.
+  P.scoreState = function () {
+    var v = this.score / 100, self = this;
+    this.goals.forEach(function (g) {
+      if (g.type === 'score') v += Math.min(self.score, g.target) / 50;
+      else v -= self.goalLeft(g) * (g.type === 'combo' ? 400 : g.type === 'make' ? 150 : 40);
+    });
+    if (this.isWon()) v += 100000;
+    if (this.exploded) v -= 1000000;
+    this.cells.forEach(function (c) {
+      var t = c.tile; if (!t) return;
+      if (t.fuse) v -= 400 / t.fuse;
+      if (t.special) v += t.special === RAINBOW ? 30 : 15;
+      if (t.kind === 'ingredient') v += self.xy(self.cells.indexOf(c))[1] * 2;
+    });
+    return v;
+  };
+  // Smart hint: simulate up to `limit` valid moves on copies of the board and return the best
+  // one for this level's goals, as { move: [a, b], value }. All copies share the same refill seed
+  // so moves are compared fairly.
+  P.suggestMove = function (limit) {
+    var mv = this.validMoves();
+    if (!mv.length) return null;
+    if (limit && mv.length > limit) { var step = mv.length / limit, pick = []; for (var k = 0; k < limit; k++) pick.push(mv[Math.floor(k * step)]); mv = pick; }
+    var best = null, bv = -Infinity;
+    for (var i = 0; i < mv.length; i++) {
+      var c = this.clone(); c.rng = new Rng(987654321);
+      if (!c.play(mv[i][0], mv[i][1])) continue;
+      var v = c.scoreState();
+      if (v > bv) { bv = v; best = mv[i]; }
+    }
+    return best ? { move: best, value: bv } : null;
+  };
+
   // Full synchronous move, used by tests and the playtest bot
   P.play = function (a, b) {
     var r = this.trySwap(a, b);
@@ -1227,6 +1268,9 @@ body.lite .sparkles{display:none}
  * 2026-11-15 v0.4 performance (no per-tile filters, auto lite graphics), candy crates, fizz
  *                 bombs, Sugar Rush finale, start boosters, tutorial hand, worlds 4-6,
  *                 new achievements. Previous: archive/ui.v03.js
+ * 2026-11-15 v0.5 versioned save (v2) with migration from v0.1-v0.4 keys, backup copy and
+ *                 corruption recovery; smart goal-aware hints + hint button; audio voice
+ *                 limiting. Previous: archive/ui.v04.js
  */
 (function () {
   'use strict';
@@ -1238,28 +1282,61 @@ body.lite .sparkles{display:none}
   // ---------- storage (persistent if available, else session-only) ----------
   var persistent = (function () { try { localStorage.setItem('__sv', '1'); localStorage.removeItem('__sv'); return true; } catch (e) { return false; } })();
   var mem = {};
-  var store = {
-    get: function (k, d) {
-      if (persistent) { try { var v = localStorage.getItem(k); if (v) return Object.assign({}, d, JSON.parse(v)); } catch (e) {} }
-      return mem[k] ? mem[k] : JSON.parse(JSON.stringify(d));
-    },
-    set: function (k, v) { mem[k] = v; if (persistent) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } }
-  };
   var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var DEF = {
     progress: { unlocked: 1, stars: {}, best: {} },
     inv: { hammer: 3, blast: 1, swap: 2, shuffle: 2, moves: 2 },
-    settings: { sfxVol: 0.8, musicVol: 0.4, haptics: true, reduced: prefersReduced, lite: null },
+    settings: { sfxVol: 0.8, musicVol: 0.4, haptics: true, reduced: prefersReduced, lite: null, autoHint: true },
     profile: { name: 'Sweet Player', avatar: '🧁', coins: 100 },
     stats: { played: 0, wins: 0, losses: 0, totalScore: 0, matches: 0, rockets: 0, bombs: 0, rainbows: 0, combos: 0,
       bestCascade: 0, ice: 0, choc: 0, acorns: 0, boosters: 0, dailyClaims: 0, crates: 0, defused: 0 },
     daily: { last: '', streak: 0 },
     ach: { done: {} }
   };
-  var S = {};
-  Object.keys(DEF).forEach(function (k) { S[k] = store.get('sv_' + k, DEF[k]); });
-  ['inv', 'stats'].forEach(function (k) { Object.keys(DEF[k]).forEach(function (f) { if (S[k][f] == null) S[k][f] = DEF[k][f]; }); });
-  function save() { Object.keys(DEF).forEach(function (k) { store.set('sv_' + k, S[k]); }); }
+  // ---- Save system v2 (2026-11-15) ----
+  // One versioned record {v, savedAt, data}. A backup of the previous save is kept in sv_save_bak.
+  // A save that cannot be read is copied to sv_corrupt_<time> and never silently overwritten.
+  // Old v0.1-v0.4 per-section keys (sv_progress, sv_inv, ...) are migrated and left in place.
+  var SAVE_KEY = 'sv_save', SAVE_VERSION = 2, saveNote = '';
+  function lsGet(k) { if (!persistent) return mem[k] || null; try { return localStorage.getItem(k); } catch (e) { return mem[k] || null; } }
+  function lsSet(k, v) { mem[k] = v; if (!persistent) return true; try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function migrateSave(p) {
+    if (!p || typeof p !== 'object' || !p.data) return null;
+    var d = p.data, v = p.v || 1;
+    // future: if (v === 2) { ...convert to 3...; v = 3; }
+    return v <= SAVE_VERSION ? d : null;
+  }
+  function readSave(raw) { try { return migrateSave(JSON.parse(raw)); } catch (e) { return null; } }
+  function loadSave() {
+    var raw = lsGet(SAVE_KEY), data = null;
+    if (raw) {
+      data = readSave(raw);
+      if (!data) {
+        lsSet('sv_corrupt_' + Date.now(), raw);
+        var bak = lsGet(SAVE_KEY + '_bak');
+        data = bak ? readSave(bak) : null;
+        saveNote = data ? 'Your save was damaged, so it was restored from the backup copy.' : 'Your save could not be read. A copy was kept and a fresh save started.';
+      }
+    } else {
+      var old = {}, found = false;
+      Object.keys(DEF).forEach(function (k) {
+        var v = lsGet('sv_' + k);
+        if (v) { try { old[k] = JSON.parse(v); found = true; } catch (e) {} }
+      });
+      if (found) { data = old; saveNote = 'migrated'; }
+    }
+    var out = {};
+    Object.keys(DEF).forEach(function (k) {
+      out[k] = Object.assign(JSON.parse(JSON.stringify(DEF[k])), (data && data[k] && typeof data[k] === 'object') ? data[k] : {});
+    });
+    return out;
+  }
+  var S = loadSave();
+  function save() {
+    var prev = lsGet(SAVE_KEY);
+    if (prev && readSave(prev)) lsSet(SAVE_KEY + '_bak', prev);
+    lsSet(SAVE_KEY, JSON.stringify({ v: SAVE_VERSION, savedAt: new Date().toISOString(), data: S }));
+  }
 
   // ---------- audio (Web Audio, generated) ----------
   var actx = null, sfxBus = null, musicBus = null;
@@ -1276,8 +1353,10 @@ body.lite .sparkles{display:none}
     return actx;
   }
   function applyVolumes() { if (sfxBus) { sfxBus.gain.value = S.settings.sfxVol; musicBus.gain.value = S.settings.musicVol * 0.6; } }
+  var voices = 0, MAX_VOICES = 14, lastSfx = {};
   function tone(f, d, type, vol, when, slide, bus) {
     var a = ac(); if (!a) return;
+    if (voices >= MAX_VOICES) return;          // never stack too many sounds in big cascades
     if ((bus || 'sfx') === 'sfx' && S.settings.sfxVol <= 0) return;
     var t = a.currentTime + (when || 0), o = a.createOscillator(), g = a.createGain();
     o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
@@ -1285,6 +1364,7 @@ body.lite .sparkles{display:none}
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.15, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + d);
     o.connect(g); g.connect(bus === 'music' ? musicBus : sfxBus); o.start(t); o.stop(t + d + 0.05);
+    voices++; o.onended = function () { voices--; };
   }
   var SCALE = [523, 587, 659, 784, 880, 1047, 1175, 1319];
   var sfx = {
@@ -1305,6 +1385,11 @@ body.lite .sparkles{display:none}
     lose: function () { [494, 440, 392, 330].forEach(function (f, i) { tone(f, 0.32, 'triangle', 0.12, i * 0.2); }); },
     star: function (n) { tone(880 + n * 220, 0.25, 'triangle', 0.15); }
   };
+  // rate-limit each sound effect so the same one can't fire more than every 45 ms
+  Object.keys(sfx).forEach(function (k) {
+    var fn = sfx[k];
+    sfx[k] = function () { var now = Date.now(); if (now - (lastSfx[k] || 0) < 45) return; lastSfx[k] = now; return fn.apply(null, arguments); };
+  });
   var musicTimer = null, musicStep = 0;
   var MEL = [0, 2, 4, 7, 4, 2, 9, 7, 0, 4, 7, 9, 7, 4, 2, 4], BASS = [0, 5, 3, 7, 5, 8, 7, 5];
   function startMusic() {
@@ -1928,14 +2013,18 @@ body.lite .sparkles{display:none}
   }
 
   // ---------- hints ----------
+  // Smart hint (2026-11-15): best move for this level's goals, simulated by the engine
+  function smartMove() { var r = game.suggestMove(liteOn() ? 16 : 40); return r ? r.move : game.findMove(); }
+  function showHint(mv) { mv.forEach(function (i) { var t = game.cells[i].tile, el = t && tileEls.get(t.id); if (el) { el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint'); } }); }
   function clearHint() { if (hintId) clearTimeout(hintId); hintId = null; if (tilesL) tilesL.querySelectorAll('.hint').forEach(function (e) { e.classList.remove('hint'); }); var h = document.getElementById('hand'); if (h) h.remove(); }
   function idleReset() {
     clearHint();
     var tutorial = cur <= 2 && movesMade < 3;
     hintId = setTimeout(function () {
       if (busy || over || !game || mode) return;
-      var mv = game.findMove(); if (!mv) return;
-      mv.forEach(function (i) { var t = game.cells[i].tile, el = t && tileEls.get(t.id); if (el) el.classList.add('hint'); });
+      if (!tutorial && S.settings.autoHint === false) return;
+      var mv = smartMove(); if (!mv) return;
+      showHint(mv);
       if (tutorial) {   // animated hand showing the swipe
         var a = center(mv[0]), b = center(mv[1]), h = document.createElement('div');
         h.id = 'hand'; h.className = 'hand'; h.textContent = '👆';
@@ -2038,10 +2127,10 @@ body.lite .sparkles{display:none}
     function toggle(key, label) { return '<div class="setRow">' + label + '<button class="toggle' + (S.settings[key] ? ' on' : '') + '" data-k="' + key + '" aria-label="' + label + '"></button></div>'; }
     showModal({
       title: 'Settings',
-      body: slider('sfxVol', '🔊 Sound') + slider('musicVol', '🎵 Music') + toggle('haptics', '📳 Vibration') + toggle('reduced', '🐢 Reduced motion') +
+      body: slider('sfxVol', '🔊 Sound') + slider('musicVol', '🎵 Music') + toggle('haptics', '📳 Vibration') + toggle('reduced', '🐢 Reduced motion') + toggle('autoHint', '💡 Auto hints after 6 s') +
         '<div class="setRow">⚡ Lite graphics<button class="toggle' + (liteOn() ? ' on' : '') + '" data-k="lite" aria-label="Lite graphics"></button></div>' +
         (persistent ? '' : '<p class="warnNote">Your browser is blocking storage here, so progress lasts only for this session.</p>') +
-        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.4 · 15 Nov 2026</p>',
+        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.5 · 15 Nov 2026</p>',
       buttons: [{ label: 'Done', cls: 'green', fn: onBack }, { label: 'Reset progress', cls: '', fn: function () {
         confirmModal('Reset progress?', 'Do you want to delete all your stars, coins, boosters, stats and achievements? This can’t be undone.', 'Yes, delete everything', function () {
           Object.keys(DEF).forEach(function (k) { S[k] = JSON.parse(JSON.stringify(DEF[k])); }); save(); applyReduced(); applyVolumes(); show('home'); refreshHome(); toast('Progress reset');
@@ -2109,10 +2198,12 @@ body.lite .sparkles{display:none}
     $('#profBack').onclick = function () { sfx.click(); show('home'); refreshHome(); };
     $('#profName').addEventListener('change', function () { var v = this.value.trim().slice(0, 16); S.profile.name = v || 'Sweet Player'; this.value = S.profile.name; save(); });
     $('#pauseBtn').onclick = function () { sfx.click(); pauseModal(); };
+    $('#hintBtn').onclick = function () { if (busy || over || mode || !game) return; sfx.click(); var mv = smartMove(); if (mv) { showHint(mv); toast('💡 Best move for your goals is wiggling'); } };
+    if (saveNote === 'migrated') save(); else if (saveNote) setTimeout(function () { toast('💾 ' + saveNote); }, 2500);
     var rt = 0;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (game && current === 'game' && !busy) layoutBoard(); }, 120); });
     document.addEventListener('visibilitychange', function () { if (document.hidden && game && !over && current === 'game' && !modalOpen()) pauseModal(); });
-    window.__sv = { get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
+    window.__sv = { get voices() { return voices; }, saveNow: function () { save(); }, get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
   });
 })();
 </script>

@@ -7,6 +7,9 @@
  * 2026-11-15  v0.4  candy crates (1-3 layers, never spread), fizz bombs (countdown
  *                   tiles: lose if one reaches 0), Sugar Rush finale (leftover moves
  *                   become rockets), start boosters. Previous: archive/engine.v03.js
+ * 2026-11-15  v0.5  scoreState() goal-aware board value; suggestMove() smart hint that
+ *                   simulates candidate moves (cascades included) and picks the best one
+ *                   for the level's goals. Previous: archive/engine.v04.js
  */
 (function (root) {
   'use strict';
@@ -599,6 +602,40 @@
     return true;
   };
   P.addMoves = function () { if (this.level.time) this.timeLeft += 15; else this.moves += 5; };
+
+  // Goal-aware value of the current state (higher is better). Used by smart hints and the bot.
+  P.scoreState = function () {
+    var v = this.score / 100, self = this;
+    this.goals.forEach(function (g) {
+      if (g.type === 'score') v += Math.min(self.score, g.target) / 50;
+      else v -= self.goalLeft(g) * (g.type === 'combo' ? 400 : g.type === 'make' ? 150 : 40);
+    });
+    if (this.isWon()) v += 100000;
+    if (this.exploded) v -= 1000000;
+    this.cells.forEach(function (c) {
+      var t = c.tile; if (!t) return;
+      if (t.fuse) v -= 400 / t.fuse;
+      if (t.special) v += t.special === RAINBOW ? 30 : 15;
+      if (t.kind === 'ingredient') v += self.xy(self.cells.indexOf(c))[1] * 2;
+    });
+    return v;
+  };
+  // Smart hint: simulate up to `limit` valid moves on copies of the board and return the best
+  // one for this level's goals, as { move: [a, b], value }. All copies share the same refill seed
+  // so moves are compared fairly.
+  P.suggestMove = function (limit) {
+    var mv = this.validMoves();
+    if (!mv.length) return null;
+    if (limit && mv.length > limit) { var step = mv.length / limit, pick = []; for (var k = 0; k < limit; k++) pick.push(mv[Math.floor(k * step)]); mv = pick; }
+    var best = null, bv = -Infinity;
+    for (var i = 0; i < mv.length; i++) {
+      var c = this.clone(); c.rng = new Rng(987654321);
+      if (!c.play(mv[i][0], mv[i][1])) continue;
+      var v = c.scoreState();
+      if (v > bv) { bv = v; best = mv[i]; }
+    }
+    return best ? { move: best, value: bv } : null;
+  };
 
   // Full synchronous move, used by tests and the playtest bot
   P.play = function (a, b) {

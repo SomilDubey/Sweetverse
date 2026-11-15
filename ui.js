@@ -7,6 +7,9 @@
  * 2026-11-15 v0.4 performance (no per-tile filters, auto lite graphics), candy crates, fizz
  *                 bombs, Sugar Rush finale, start boosters, tutorial hand, worlds 4-6,
  *                 new achievements. Previous: archive/ui.v03.js
+ * 2026-11-15 v0.5 versioned save (v2) with migration from v0.1-v0.4 keys, backup copy and
+ *                 corruption recovery; smart goal-aware hints + hint button; audio voice
+ *                 limiting. Previous: archive/ui.v04.js
  */
 (function () {
   'use strict';
@@ -18,28 +21,61 @@
   // ---------- storage (persistent if available, else session-only) ----------
   var persistent = (function () { try { localStorage.setItem('__sv', '1'); localStorage.removeItem('__sv'); return true; } catch (e) { return false; } })();
   var mem = {};
-  var store = {
-    get: function (k, d) {
-      if (persistent) { try { var v = localStorage.getItem(k); if (v) return Object.assign({}, d, JSON.parse(v)); } catch (e) {} }
-      return mem[k] ? mem[k] : JSON.parse(JSON.stringify(d));
-    },
-    set: function (k, v) { mem[k] = v; if (persistent) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } }
-  };
   var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var DEF = {
     progress: { unlocked: 1, stars: {}, best: {} },
     inv: { hammer: 3, blast: 1, swap: 2, shuffle: 2, moves: 2 },
-    settings: { sfxVol: 0.8, musicVol: 0.4, haptics: true, reduced: prefersReduced, lite: null },
+    settings: { sfxVol: 0.8, musicVol: 0.4, haptics: true, reduced: prefersReduced, lite: null, autoHint: true },
     profile: { name: 'Sweet Player', avatar: '🧁', coins: 100 },
     stats: { played: 0, wins: 0, losses: 0, totalScore: 0, matches: 0, rockets: 0, bombs: 0, rainbows: 0, combos: 0,
       bestCascade: 0, ice: 0, choc: 0, acorns: 0, boosters: 0, dailyClaims: 0, crates: 0, defused: 0 },
     daily: { last: '', streak: 0 },
     ach: { done: {} }
   };
-  var S = {};
-  Object.keys(DEF).forEach(function (k) { S[k] = store.get('sv_' + k, DEF[k]); });
-  ['inv', 'stats'].forEach(function (k) { Object.keys(DEF[k]).forEach(function (f) { if (S[k][f] == null) S[k][f] = DEF[k][f]; }); });
-  function save() { Object.keys(DEF).forEach(function (k) { store.set('sv_' + k, S[k]); }); }
+  // ---- Save system v2 (2026-11-15) ----
+  // One versioned record {v, savedAt, data}. A backup of the previous save is kept in sv_save_bak.
+  // A save that cannot be read is copied to sv_corrupt_<time> and never silently overwritten.
+  // Old v0.1-v0.4 per-section keys (sv_progress, sv_inv, ...) are migrated and left in place.
+  var SAVE_KEY = 'sv_save', SAVE_VERSION = 2, saveNote = '';
+  function lsGet(k) { if (!persistent) return mem[k] || null; try { return localStorage.getItem(k); } catch (e) { return mem[k] || null; } }
+  function lsSet(k, v) { mem[k] = v; if (!persistent) return true; try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function migrateSave(p) {
+    if (!p || typeof p !== 'object' || !p.data) return null;
+    var d = p.data, v = p.v || 1;
+    // future: if (v === 2) { ...convert to 3...; v = 3; }
+    return v <= SAVE_VERSION ? d : null;
+  }
+  function readSave(raw) { try { return migrateSave(JSON.parse(raw)); } catch (e) { return null; } }
+  function loadSave() {
+    var raw = lsGet(SAVE_KEY), data = null;
+    if (raw) {
+      data = readSave(raw);
+      if (!data) {
+        lsSet('sv_corrupt_' + Date.now(), raw);
+        var bak = lsGet(SAVE_KEY + '_bak');
+        data = bak ? readSave(bak) : null;
+        saveNote = data ? 'Your save was damaged, so it was restored from the backup copy.' : 'Your save could not be read. A copy was kept and a fresh save started.';
+      }
+    } else {
+      var old = {}, found = false;
+      Object.keys(DEF).forEach(function (k) {
+        var v = lsGet('sv_' + k);
+        if (v) { try { old[k] = JSON.parse(v); found = true; } catch (e) {} }
+      });
+      if (found) { data = old; saveNote = 'migrated'; }
+    }
+    var out = {};
+    Object.keys(DEF).forEach(function (k) {
+      out[k] = Object.assign(JSON.parse(JSON.stringify(DEF[k])), (data && data[k] && typeof data[k] === 'object') ? data[k] : {});
+    });
+    return out;
+  }
+  var S = loadSave();
+  function save() {
+    var prev = lsGet(SAVE_KEY);
+    if (prev && readSave(prev)) lsSet(SAVE_KEY + '_bak', prev);
+    lsSet(SAVE_KEY, JSON.stringify({ v: SAVE_VERSION, savedAt: new Date().toISOString(), data: S }));
+  }
 
   // ---------- audio (Web Audio, generated) ----------
   var actx = null, sfxBus = null, musicBus = null;
@@ -56,8 +92,10 @@
     return actx;
   }
   function applyVolumes() { if (sfxBus) { sfxBus.gain.value = S.settings.sfxVol; musicBus.gain.value = S.settings.musicVol * 0.6; } }
+  var voices = 0, MAX_VOICES = 14, lastSfx = {};
   function tone(f, d, type, vol, when, slide, bus) {
     var a = ac(); if (!a) return;
+    if (voices >= MAX_VOICES) return;          // never stack too many sounds in big cascades
     if ((bus || 'sfx') === 'sfx' && S.settings.sfxVol <= 0) return;
     var t = a.currentTime + (when || 0), o = a.createOscillator(), g = a.createGain();
     o.type = type || 'sine'; o.frequency.setValueAtTime(f, t);
@@ -65,6 +103,7 @@
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.15, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + d);
     o.connect(g); g.connect(bus === 'music' ? musicBus : sfxBus); o.start(t); o.stop(t + d + 0.05);
+    voices++; o.onended = function () { voices--; };
   }
   var SCALE = [523, 587, 659, 784, 880, 1047, 1175, 1319];
   var sfx = {
@@ -85,6 +124,11 @@
     lose: function () { [494, 440, 392, 330].forEach(function (f, i) { tone(f, 0.32, 'triangle', 0.12, i * 0.2); }); },
     star: function (n) { tone(880 + n * 220, 0.25, 'triangle', 0.15); }
   };
+  // rate-limit each sound effect so the same one can't fire more than every 45 ms
+  Object.keys(sfx).forEach(function (k) {
+    var fn = sfx[k];
+    sfx[k] = function () { var now = Date.now(); if (now - (lastSfx[k] || 0) < 45) return; lastSfx[k] = now; return fn.apply(null, arguments); };
+  });
   var musicTimer = null, musicStep = 0;
   var MEL = [0, 2, 4, 7, 4, 2, 9, 7, 0, 4, 7, 9, 7, 4, 2, 4], BASS = [0, 5, 3, 7, 5, 8, 7, 5];
   function startMusic() {
@@ -708,14 +752,18 @@
   }
 
   // ---------- hints ----------
+  // Smart hint (2026-11-15): best move for this level's goals, simulated by the engine
+  function smartMove() { var r = game.suggestMove(liteOn() ? 16 : 40); return r ? r.move : game.findMove(); }
+  function showHint(mv) { mv.forEach(function (i) { var t = game.cells[i].tile, el = t && tileEls.get(t.id); if (el) { el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint'); } }); }
   function clearHint() { if (hintId) clearTimeout(hintId); hintId = null; if (tilesL) tilesL.querySelectorAll('.hint').forEach(function (e) { e.classList.remove('hint'); }); var h = document.getElementById('hand'); if (h) h.remove(); }
   function idleReset() {
     clearHint();
     var tutorial = cur <= 2 && movesMade < 3;
     hintId = setTimeout(function () {
       if (busy || over || !game || mode) return;
-      var mv = game.findMove(); if (!mv) return;
-      mv.forEach(function (i) { var t = game.cells[i].tile, el = t && tileEls.get(t.id); if (el) el.classList.add('hint'); });
+      if (!tutorial && S.settings.autoHint === false) return;
+      var mv = smartMove(); if (!mv) return;
+      showHint(mv);
       if (tutorial) {   // animated hand showing the swipe
         var a = center(mv[0]), b = center(mv[1]), h = document.createElement('div');
         h.id = 'hand'; h.className = 'hand'; h.textContent = '👆';
@@ -818,10 +866,10 @@
     function toggle(key, label) { return '<div class="setRow">' + label + '<button class="toggle' + (S.settings[key] ? ' on' : '') + '" data-k="' + key + '" aria-label="' + label + '"></button></div>'; }
     showModal({
       title: 'Settings',
-      body: slider('sfxVol', '🔊 Sound') + slider('musicVol', '🎵 Music') + toggle('haptics', '📳 Vibration') + toggle('reduced', '🐢 Reduced motion') +
+      body: slider('sfxVol', '🔊 Sound') + slider('musicVol', '🎵 Music') + toggle('haptics', '📳 Vibration') + toggle('reduced', '🐢 Reduced motion') + toggle('autoHint', '💡 Auto hints after 6 s') +
         '<div class="setRow">⚡ Lite graphics<button class="toggle' + (liteOn() ? ' on' : '') + '" data-k="lite" aria-label="Lite graphics"></button></div>' +
         (persistent ? '' : '<p class="warnNote">Your browser is blocking storage here, so progress lasts only for this session.</p>') +
-        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.4 · 15 Nov 2026</p>',
+        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.5 · 15 Nov 2026</p>',
       buttons: [{ label: 'Done', cls: 'green', fn: onBack }, { label: 'Reset progress', cls: '', fn: function () {
         confirmModal('Reset progress?', 'Do you want to delete all your stars, coins, boosters, stats and achievements? This can’t be undone.', 'Yes, delete everything', function () {
           Object.keys(DEF).forEach(function (k) { S[k] = JSON.parse(JSON.stringify(DEF[k])); }); save(); applyReduced(); applyVolumes(); show('home'); refreshHome(); toast('Progress reset');
@@ -889,9 +937,11 @@
     $('#profBack').onclick = function () { sfx.click(); show('home'); refreshHome(); };
     $('#profName').addEventListener('change', function () { var v = this.value.trim().slice(0, 16); S.profile.name = v || 'Sweet Player'; this.value = S.profile.name; save(); });
     $('#pauseBtn').onclick = function () { sfx.click(); pauseModal(); };
+    $('#hintBtn').onclick = function () { if (busy || over || mode || !game) return; sfx.click(); var mv = smartMove(); if (mv) { showHint(mv); toast('💡 Best move for your goals is wiggling'); } };
+    if (saveNote === 'migrated') save(); else if (saveNote) setTimeout(function () { toast('💾 ' + saveNote); }, 2500);
     var rt = 0;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (game && current === 'game' && !busy) layoutBoard(); }, 120); });
     document.addEventListener('visibilitychange', function () { if (document.hidden && game && !over && current === 'game' && !modalOpen()) pauseModal(); });
-    window.__sv = { get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
+    window.__sv = { get voices() { return voices; }, saveNow: function () { save(); }, get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
   });
 })();

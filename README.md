@@ -1,11 +1,12 @@
 # SWEETVERSE – Match & Magic (playable prototype)
 
-**Version:** v0.4 · **Date:** 2026-11-15
+**Version:** v0.5 · **Date:** 2026-11-15
 
 An original match-3 puzzle game that runs in any modern browser, on phone, tablet or desktop.
 It is one self-contained HTML file with no external assets, APIs or paid services.
 
 ## Changelog
+- **2026-11-15 v0.5** Full project audit (`AUDIT.md`). Save system v2: one versioned save with a backup copy, migration from v0.1–v0.4, and recovery from corrupted data (old keys and damaged data are kept, never deleted). **Smart hint**: simulates every candidate move against the level's goals. In 216 bot games, following it wins 83% vs 4% for the old first-found hint. New 💡 hint button and an "Auto hints" setting. Audio capped at 14 simultaneous sounds with per-effect rate limiting. Previous files in `archive/` (`*.v04.*`).
 - **2026-11-15 v0.4** *Performance:* removed per-tile shadow filters and repaint-heavy glow animations (replaced with cheap equivalents), static background in gameplay, automatic **Lite graphics** mode when the frame rate is low, plus a Settings switch. *Content:* **60 levels in 6 worlds** (new: Bubblegum Bay, Fizzy Falls, Starlight Bakery). *New mechanics:* **Candy Crates** (1–3 layers, never spread), **Fizz Bombs** (countdown sweets: the level is lost if one reaches 0), **Sugar Rush finale** (leftover moves turn into rockets that all fire), **start boosters** (begin with a Rocket, Bomb or Rainbow Orb for coins), **tutorial hand** on levels 1–2, ice drawn as a clearer frosted layer, 7 new achievements, 2 new stats. Previous files in `archive/` (`*.v03.*`).
 - **2026-11-14 v0.3** Re-planned the 30 levels to the brief's six progression bands. Added chocolate blockers (1–2 layers, spreading), goals for making specials and firing combos, and two new boosters (Colour Blast, Magic Swap). New screens: splash, main menu, player profile with stats, achievements, daily reward, coins, booster inventory. Canvas particle system, volume sliders, reduced-motion mode, landscape layout, session-only storage fallback. Fixed: world background hidden behind the board; booster labels unreadable; map title wrapping.
 - **2026-11-14 v0.2** Bot-tuned difficulty and star thresholds.
@@ -27,6 +28,7 @@ Earlier versions of changed files are kept in `archive/`.
 | `template.html` | Page skeleton. `build.py` inlines the CSS and JS into it. |
 | `build.py` | Builds `sweetverse.html`. |
 | `test.js` | 32 engine unit tests, plus the playtest bot (`--bot N`). |
+| `AUDIT.md` | Project audit, bug list, feature tracker and roadmap. |
 | `perf.py`, `perf_ab.py`, `prof.py` | Performance benchmark, A/B effect test, JS CPU profile. |
 | `smoke.py` | 38 browser tests in real Chrome (mouse, touch, reload). |
 | `archive/` | Previous versions of replaced files. |
@@ -120,10 +122,10 @@ v0.4 is now as fast as having every effect switched off. A CPU profile shows gam
 
 ## 4. Testing report (actual results, 2026-11-14)
 
-### 4a. Engine unit tests: `node test.js` → **32 passed, 0 failed** (re-run 2026-11-15)
-Covers: no matches and at least one move on every new board (30 levels × 20 seeds); horizontal/vertical matches; invalid swap rejected with no move used; 4-match → Rocket; 5-match → Rainbow Orb; L-shape → Magic Bomb; Rocket clears its row; Rainbow + candy clears that colour; Bomb + Bomb = Star Crusher (5×5); Rocket + Rocket clears row and column; gravity and refill leave no gaps; single and double ice; locks; acorns collected at the bottom and immune to blasts; shuffle always produces a playable board; hammer; extra moves (and +15 s on timed levels); cascade multiplier; chocolate (blocking, adjacent damage, two layers, spreading or not spreading); make-special and combo goals; Colour Blast; Magic Swap; hammer on chocolate; **v0.4:** crates (3 layers, no spreading), fizz bombs (placement, countdown, explosion = loss, defuse goal), Sugar Rush finale, start boosters. Plus a **fuzz test: 300 random games across all levels**, checking after every move that the board is stable, has no gaps and always has a valid move.
+### 4a. Engine unit tests: `node test.js` → **34 passed, 0 failed** (2026-11-15, v0.5)
+Covers: no matches and at least one move on every new board (30 levels × 20 seeds); horizontal/vertical matches; invalid swap rejected with no move used; 4-match → Rocket; 5-match → Rainbow Orb; L-shape → Magic Bomb; Rocket clears its row; Rainbow + candy clears that colour; Bomb + Bomb = Star Crusher (5×5); Rocket + Rocket clears row and column; gravity and refill leave no gaps; single and double ice; locks; acorns collected at the bottom and immune to blasts; shuffle always produces a playable board; hammer; extra moves (and +15 s on timed levels); cascade multiplier; chocolate (blocking, adjacent damage, two layers, spreading or not spreading); make-special and combo goals; Colour Blast; Magic Swap; hammer on chocolate; **v0.5:** smart hint picks the goal-serving move, hint speed < 60 ms on 9×9; **v0.4:** crates (3 layers, no spreading), fizz bombs (placement, countdown, explosion = loss, defuse goal), Sugar Rush finale, start boosters. Plus a **fuzz test: 300 random games across all levels**, checking after every move that the board is stable, has no gaps and always has a valid move.
 
-### 4b. Browser tests: `python3 smoke.py` → **38 / 38 PASS** (2026-11-15)
+### 4b. Browser tests: `python3 smoke.py` → **43 / 43 PASS** (2026-11-15, v0.5)
 Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) and 1440×900 (desktop). Mouse drags, CDP **touch** swipes and taps.
 
 | Test | Result | Note |
@@ -135,7 +137,7 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Profile: rename + avatar | PASS |  |
 | Locked level cannot be opened | PASS |  |
 | Tutorial hand shows the first move on level 1 | PASS |  |
-| Valid swap (mouse drag) | PASS | moves 15->14 score 0->180 |
+| Valid swap (mouse drag) | PASS | moves 15->14 score 0->540 |
 | Board refilled, stable after cascades | PASS | matches left 0, empty 0, tiles 64 |
 | Valid swap (touch swipe) | PASS | moves 14->13 |
 | Invalid swap rejected, no move used | PASS |  |
@@ -144,7 +146,7 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Special + special combo fires (Mega Blast XL) | PASS |  |
 | Hammer booster | PASS |  |
 | Colour Blast booster | PASS |  |
-| Magic Swap booster (no move used) | PASS | tiles [244, 156]->[156, 244] |
+| Magic Swap booster (no move used) | PASS | tiles [321, 254]->[254, 321] |
 | Shuffle booster | PASS |  |
 | Extra Moves booster | PASS |  |
 | Booster mode can be cancelled | PASS |  |
@@ -164,7 +166,12 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Particle pool empties when idle (no growth) | PASS |  |
 | Landscape layout fits screen | PASS |  |
 | No page scroll during gameplay | PASS |  |
-| Save and restore after reload (localStorage) | PASS | [60,{"1":3},"Somil",438] |
+| Save and restore after reload (localStorage) | PASS | [60,{"1":3},"Somil",358] |
+| Hint button highlights the smart move | PASS |  |
+| Audio: never more than 14 sounds at once in a big combo | PASS | max simultaneous 8 |
+| Save migration: v0.4 progress, coins and boosters kept; new boosters get defaults; old keys kept | PASS | [7, 'OldSave', 999, 9, 2, True, True] |
+| Corrupted save: restored from backup, damaged copy kept | PASS | [1234, 7, True] |
+| Player is told the save was restored | PASS |  |
 | No console errors | PASS |  |
 
 ### 4c. Playtest bot: `node test.js --bot 24`
