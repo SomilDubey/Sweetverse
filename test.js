@@ -1,4 +1,5 @@
 // SWEETVERSE engine tests + playtest bot – 2026-11-14 (v0.3: chocolate, goals, new boosters)
+// 2026-11-15 v0.4: crates, fizz bombs, finale, start boosters
 const assert = require('assert');
 const E = require('./engine.js');
 const { LEVELS } = require('./levels.js');
@@ -175,6 +176,46 @@ test('hammer chips chocolate', () => {
   const g = new E.Game({ w: 8, h: 8, moves: 20, colors: 6, goals: [{ type: 'chocolate' }], layout: ['D.......'] }, 2);
   assert.ok(g.hammer(0)); assert.strictEqual(g.cells[0].choc, 1);
 });
+test('crates: 3 layers need 3 hits, never spread, goal counts', () => {
+  const g = new E.Game({ w: 8, h: 8, moves: 20, colors: 6, goals: [{ type: 'crates' }], layout: ['........','........','...Z....'] }, 3);
+  const c = g.idx(3, 2); assert.strictEqual(g.cells[c].crate, 3); assert.strictEqual(g.canSwap(c, g.idx(3, 1)), false);
+  for (let k = 0; k < 3; k++) { g.cascade = 1; g.clearCells(new Set([g.idx(3, 3)])); g.collapse(); }
+  assert.strictEqual(g.cells[c].crate, 0); assert.ok(g.isWon());
+  const h = new E.Game({ w: 8, h: 8, moves: 20, colors: 6, goals: [{ type: 'crates' }], layout: ['X.......'] }, 4);
+  for (let m = 0; m < 5; m++) { const mv = h.validMoves().find(([a, b]) => h.xy(a)[1] > 2 && h.xy(b)[1] > 2); if (mv) h.play(mv[0], mv[1]); }
+  assert.strictEqual(h.cells.filter(c => c.crate).length, 1, 'crate must not spread');
+});
+test('fizz bombs: placed at start, tick down each move, explode -> level lost', () => {
+  const lvl = { w: 8, h: 8, moves: 30, colors: 6, goals: [{ type: 'score', target: 1e9 }], fuse: { n: 2, start: 3 } };
+  const g = new E.Game(lvl, 9); assert.strictEqual(g.fuseCount(), 2);
+  const fuseCell = g.cells.findIndex(c => c.tile && c.tile.fuse);
+  const id = g.cells[fuseCell].tile.id;
+  let lost = false;
+  for (let m = 0; m < 6 && !lost; m++) {
+    const mv = g.validMoves().find(([a, b]) => ![a, b].some(i => Math.abs(g.xy(i)[0] - g.xy(fuseCell)[0]) <= 1)) || g.validMoves()[0];
+    g.play(mv[0], mv[1]); lost = g.isLost();
+  }
+  assert.ok(lost || g.cells.every(c => !c.tile || c.tile.id !== id), 'either exploded or was cleared');
+  const f = new E.Game(lvl, 9); const i = f.cells.findIndex(c => c.tile && c.tile.fuse);
+  f.cells[i].tile.fuse = 1; f.moveUsed = true; f.endTurn(); assert.ok(f.exploded && f.isLost() && !f.isWon());
+});
+test('fizz bomb defused by clearing it (goal: fuses)', () => {
+  const g = new E.Game({ w: 8, h: 8, moves: 30, colors: 6, goals: [{ type: 'fuses', target: 1 }], fuse: { n: 1, start: 9 } }, 2);
+  const i = g.cells.findIndex(c => c.tile && c.tile.fuse); g.cascade = 1; g.clearCells(new Set([i]));
+  assert.ok(g.isWon());
+});
+test('Sugar Rush finale converts leftover moves to rockets and fires them', () => {
+  const g = new E.Game(LEVELS[0], 5); g.moves = 6; const s0 = g.score;
+  let n = 0; while (g.finaleConvert() != null) n++;
+  assert.strictEqual(n, 6); assert.strictEqual(g.moves, 0);
+  assert.strictEqual(g.cells.filter(c => c.tile && (c.tile.special === E.ROW || c.tile.special === E.COL)).length >= 6, true);
+  assert.ok(g.finaleFire()); g.collapse(); assert.ok(g.score > s0 + 1000);
+});
+test('start boosters place a special on a plain candy', () => {
+  const g = new E.Game(LEVELS[0], 5);
+  ['rocket', 'bomb', 'rainbow'].forEach(k => { const i = g.placeStart(k); assert.ok(i != null && g.cells[i].tile.special); });
+  assert.strictEqual(g.cells.filter(c => c.tile && c.tile.special).length, 3);
+});
 test('fuzz: 300 random games keep invariants (stable board, no gaps, a move always exists)', () => {
   for (let s = 1; s <= 300; s++) {
     const l = LEVELS[s % LEVELS.length]; const g = new E.Game(l, s * 31);
@@ -182,7 +223,7 @@ test('fuzz: 300 random games keep invariants (stable board, no gaps, a move alwa
       const mv = g.validMoves(); assert.ok(mv.length, 'no moves L' + l.id + ' seed ' + s);
       const [a, b] = mv[g.rng.int(mv.length)]; assert.ok(g.play(a, b));
       assert.strictEqual(g.findGroups().length, 0, 'unstable board');
-      g.cells.forEach(c => { if (!c.hole && !c.choc) assert.ok(c.tile, 'gap L' + l.id); });
+      g.cells.forEach(c => { if (!c.hole && !c.choc && !c.crate) assert.ok(c.tile, 'gap L' + l.id); });
     }
   }
 });
@@ -195,6 +236,8 @@ if (process.argv.includes('--bot')) {
     let v = g.score / 100;
     g.goals.forEach(goal => { if (goal.type !== 'score') v -= g.goalLeft(goal) * (goal.type === 'combo' ? 400 : goal.type === 'make' ? 150 : 40); else v += Math.min(g.score, goal.target) / 50; });
     if (g.isWon()) v += 100000;
+    if (g.exploded) v -= 1e6;
+    g.cells.forEach(c => { if (c.tile && c.tile.fuse) v -= 400 / c.tile.fuse; });
     return v;
   }
   const runs = +(process.argv[process.argv.indexOf('--bot') + 1] || 20);
@@ -206,7 +249,7 @@ if (process.argv.includes('--bot')) {
       const g = new E.Game(l, 1000 + r * 97);
       let turns = 0;
       const maxTurns = l.time ? Math.round(l.time / 3) : Infinity; // ~3s per move for a human
-      while (!g.isWon() && g.moves > 0 && turns < maxTurns) {
+      while (!g.isWon() && !g.exploded && g.moves > 0 && turns < maxTurns) {
         const mv = g.validMoves(); let best = null, bv = -Infinity;
         for (const [a, b] of mv) { const c = g.clone(); c.play(a, b); const v = evalState(c) + g.rng.next(); if (v > bv) { bv = v; best = [a, b]; } }
         g.play(best[0], best[1]); turns++;

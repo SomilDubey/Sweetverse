@@ -4,6 +4,9 @@
  * 2026-11-14  v0.3  chocolate blockers (1-2 layers, spreading), goals for making
  *                   specials / firing combos / clearing chocolate, Colour Blast and
  *                   Magic Swap boosters, goalLeft() helper.
+ * 2026-11-15  v0.4  candy crates (1-3 layers, never spread), fizz bombs (countdown
+ *                   tiles: lose if one reaches 0), Sugar Rush finale (leftover moves
+ *                   become rockets), start boosters. Previous: archive/engine.v03.js
  */
 (function (root) {
   'use strict';
@@ -32,18 +35,20 @@
     this.timeLeft = level.time || 0;
     this.score = 0; this.cascade = 0; this.events = [];
     this.cells = [];
-    var layout = level.layout || [], ice = 0, locks = 0, chocs = 0;
+    var layout = level.layout || [], ice = 0, locks = 0, chocs = 0, crates = 0;
     for (var y = 0; y < this.h; y++) for (var x = 0; x < this.w; x++) {
       var ch = (layout[y] && layout[y][x]) || '.';
       var c = {
         hole: ch === '#',
         choc: ch === 'C' ? 1 : ch === 'D' ? 2 : 0,
+        crate: ch === 'X' ? 1 : ch === 'Y' ? 2 : ch === 'Z' ? 3 : 0,
         ice: (ch === 'i' || ch === 'K') ? 1 : ch === 'I' ? 2 : 0,
         lock: (ch === 'L' || ch === 'K') ? 1 : 0,
         tile: null
       };
       if (c.ice) ice++;
       if (c.choc) chocs++;
+      if (c.crate) crates++;
       locks += c.lock;
       this.cells.push(c);
     }
@@ -52,12 +57,14 @@
       if (g.type === 'ice') o.target = ice;
       if (g.type === 'locks') o.target = locks;
       if (g.type === 'chocolate') o.target = chocs;
+      if (g.type === 'crates') o.target = crates;
       return o;
     });
     var ing = this.goals.filter(function (g) { return g.type === 'ingredients'; })[0];
     this.ingredientsPending = ing ? ing.target : 0;
     this.chocSpread = chocs > 0 && level.chocSpread !== false;
     this.chocHitThisTurn = false; this.moveUsed = false;
+    this.fuse = level.fuse || null; this.exploded = false;
     this.fill();
   }
   var P = Game.prototype;
@@ -72,7 +79,7 @@
     if (t.kind !== 'candy' || t.special === RAINBOW) return -1;
     return t.color;
   };
-  P.blocked = function (c) { return c.hole || c.choc > 0; };
+  P.blocked = function (c) { return c.hole || c.choc > 0 || c.crate > 0; };
   P.randomColor = function () { return this.rng.int(this.colors); };
 
   P.fill = function () {
@@ -93,6 +100,11 @@
       var i = tops.splice(this.rng.int(tops.length), 1)[0];
       this.cells[i].tile = tile(-1, null, 'ingredient');
       this.ingredientsPending--; n--;
+    }
+    if (this.fuse) {
+      var cands = [], self = this;
+      this.cells.forEach(function (c, i) { if (!self.blocked(c) && !c.lock && c.tile && c.tile.kind === 'candy' && self.xy(i)[1] < self.h - 2) cands.push(i); });
+      for (var f = 0; f < this.fuse.n && cands.length; f++) this.cells[cands.splice(this.rng.int(cands.length), 1)[0]].tile.fuse = this.fuse.start;
     }
     if (!this.hasMoves()) this.shuffle();
     this.events.length = 0;
@@ -248,6 +260,7 @@
     this.goals.forEach(function (g) { if (g.type === 'make' && (g.special === key || g.special === 'any') && g.progress < g.target) g.progress++; });
   };
   P.chocCount = function () { var n = 0; this.cells.forEach(function (c) { if (c.choc) n++; }); return n; };
+  P.fuseCount = function () { var n = 0; this.cells.forEach(function (c) { if (c.tile && c.tile.fuse) n++; }); return n; };
   P.goalLeft = function (g) {
     if (g.type === 'score') return Math.max(0, g.target - this.score);
     if (g.type === 'chocolate') return this.chocCount();
@@ -255,6 +268,12 @@
   };
   P.hitChoc = function (i) {
     var c = this.cells[i];
+    if (c && c.crate) {
+      c.crate--; this.score += 80;
+      if (c.crate === 0) this.bump('crates');
+      this.events.push({ type: 'crate', idx: i, left: c.crate });
+      return;
+    }
     if (!c || !c.choc) return;
     c.choc--; this.chocHitThisTurn = true; this.score += 100;
     this.events.push({ type: 'choc', idx: i, left: c.choc });
@@ -282,24 +301,26 @@
     var n = 0, chocHit = new Set();
     cleared.forEach(function (i) {
       var c = self.cells[i];
-      if (c.choc) { chocHit.add(i); return; }
+      if (c.choc || c.crate) { chocHit.add(i); return; }
       if (c.tile) {
         var p = self.xy(i);
         [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
           var x = p[0] + d[0], y = p[1] + d[1];
-          if (x >= 0 && y >= 0 && x < self.w && y < self.h && self.cells[self.idx(x, y)].choc) chocHit.add(self.idx(x, y));
+          var nc = (x >= 0 && y >= 0 && x < self.w && y < self.h) ? self.cells[self.idx(x, y)] : null;
+          if (nc && (nc.choc || nc.crate)) chocHit.add(self.idx(x, y));
         });
       }
     });
     chocHit.forEach(function (i) { self.hitChoc(i); });
     cleared.forEach(function (i) {
       var c = self.cells[i];
-      if (c.choc) return;
+      if (c.choc || c.crate) return;
       if (c.lock) { c.lock = 0; self.bump('locks'); self.events.push({ type: 'unlock', idx: i }); }
       if (c.ice > 0) { c.ice--; if (c.ice === 0) self.bump('ice'); self.events.push({ type: 'ice', idx: i, left: c.ice }); }
       var t = c.tile;
       if (!t || t.kind === 'ingredient') return;
       if (t.color >= 0) self.bumpColor(t.color);
+      if (t.fuse) { self.bump('fuses'); self.events.push({ type: 'defuse', idx: i }); }
       self.events.push({ type: 'clear', idx: i, id: t.id, color: t.color, special: t.special });
       c.tile = null; n++;
     });
@@ -386,7 +407,9 @@
         return tile(-1, null, 'ingredient');
       }
     }
-    return tile(this.randomColor());
+    var t = tile(this.randomColor());
+    if (this.fuse && this.fuseCount() < this.fuse.n && this.rng.next() < (this.fuse.rate || 0.05)) t.fuse = this.fuse.start;
+    return t;
   };
 
   P.gravity = function () {
@@ -487,15 +510,27 @@
     return true;
   };
   P.endTurn = function () {
+    if (this.fuse && this.moveUsed && !this.isWon()) {
+      var self = this;
+      this.cells.forEach(function (c, i) {
+        if (c.tile && c.tile.fuse) {
+          c.tile.fuse--;
+          self.events.push({ type: 'fuseTick', idx: i, left: c.tile.fuse });
+          if (c.tile.fuse <= 0) { self.exploded = true; self.events.push({ type: 'fuseBoom', idx: i }); }
+        }
+      });
+    }
     if (this.chocSpread && this.moveUsed && !this.chocHitThisTurn && !this.isWon() && this.chocCount() > 0) this.spreadChocolate();
     this.moveUsed = false; this.chocHitThisTurn = false;
     if (!this.isWon() && !this.hasMoves()) this.shuffle();
   };
   P.isWon = function () {
     var self = this;
+    if (this.exploded) return false;
     return this.goals.every(function (g) { return self.goalLeft(g) <= 0; });
   };
   P.isLost = function () {
+    if (this.exploded) return true;
     if (this.isWon()) return false;
     return this.level.time ? this.timeLeft <= 0 : this.moves <= 0;
   };
@@ -508,7 +543,7 @@
   // Boosters
   P.hammer = function (i) {
     var c = this.cells[i];
-    if (c && c.choc) { this.cascade = 1; this.hitChoc(i); return true; }
+    if (c && (c.choc || c.crate)) { this.cascade = 1; this.hitChoc(i); return true; }
     if (!c || c.hole || !c.tile) return false;
     if (c.tile.kind === 'ingredient' && !c.ice && !c.lock) return false;
     this.cascade = 1;
@@ -531,6 +566,38 @@
     this.swapTiles(a, b); this.cascade = 0;
     return { ok: true, matched: this.findGroups().length > 0 };
   };
+  // Pick a plain candy (no special, lock, fuse) – used by finale and start boosters
+  P.plainCandy = function () {
+    var out = [], self = this;
+    this.cells.forEach(function (c, i) { var t = c.tile; if (!self.blocked(c) && !c.lock && t && t.kind === 'candy' && !t.special && !t.fuse) out.push(i); });
+    return out.length ? out[this.rng.int(out.length)] : null;
+  };
+  // Start booster: place a special before the first move
+  P.placeStart = function (kind) {
+    var i = this.plainCandy(); if (i == null) return null;
+    var t = this.cells[i].tile;
+    t.special = kind === 'rocket' ? (this.rng.next() < 0.5 ? ROW : COL) : kind === 'bomb' ? BOMB : RAINBOW;
+    this.events.push({ type: 'convert', idx: i, id: t.id, special: t.special });
+    return i;
+  };
+  // Sugar Rush finale, step 1: turn one leftover move into a rocket. Returns cell or null.
+  P.finaleConvert = function () {
+    if (!isFinite(this.moves) || this.moves <= 0) return null;
+    var i = this.plainCandy(); if (i == null) return null;
+    this.moves--;
+    var t = this.cells[i].tile; t.special = this.rng.next() < 0.5 ? ROW : COL;
+    this.score += 120;
+    this.events.push({ type: 'convert', idx: i, id: t.id, special: t.special, finale: true });
+    return i;
+  };
+  // Sugar Rush finale, step 2: fire every special on the board
+  P.finaleFire = function () {
+    var set = new Set();
+    this.cells.forEach(function (c, i) { if (c.tile && c.tile.special && c.tile.special !== RAINBOW) set.add(i); });
+    if (!set.size) return false;
+    this.cascade = 1; this.clearCells(set);
+    return true;
+  };
   P.addMoves = function () { if (this.level.time) this.timeLeft += 15; else this.moves += 5; };
 
   // Full synchronous move, used by tests and the playtest bot
@@ -546,7 +613,7 @@
   P.clone = function () {
     var g = Object.create(Game.prototype);
     Object.assign(g, this);
-    g.cells = this.cells.map(function (c) { return { hole: c.hole, choc: c.choc, ice: c.ice, lock: c.lock, tile: c.tile ? Object.assign({}, c.tile) : null }; });
+    g.cells = this.cells.map(function (c) { return { hole: c.hole, choc: c.choc, crate: c.crate, ice: c.ice, lock: c.lock, tile: c.tile ? Object.assign({}, c.tile) : null }; });
     g.goals = this.goals.map(function (x) { return Object.assign({}, x); });
     g.rng = new Rng(this.rng.s);
     g.events = [];

@@ -3,11 +3,14 @@
  * 2026-11-14 v0.3 re-planned to brief bands: 1-5 tutorial, 6-10 obstacles & move limits,
  *                 11-15 special candies, 16-20 ice & blockers, 21-25 multi-objective,
  *                 26-30 advanced combinations. Difficulty labels measured by playtest bot.
+ * 2026-11-15 v0.4 levels 31-60 in three new worlds: Bubblegum Bay (candy crates),
+ *                 Fizzy Falls (fizz bombs), Starlight Bakery (everything mixed). Previous: archive/levels.v03.js
  *
  * Layout legend: '.' normal  '#' hole  'i' ice  'I' double ice  'L' lock  'K' lock+ice
- *                'C' chocolate  'D' double chocolate
+ *                'C' chocolate  'D' double chocolate  'X' 'Y' 'Z' candy crate (1/2/3 layers)
+ * level.fuse = { n: fizz bombs on board, start: moves on their counter, rate: spawn chance }
  * Colours: 0 red, 1 orange, 2 yellow, 3 green, 4 blue, 5 purple
- * Goal types: score, color, ice, locks, ingredients, chocolate, make (rocket|bomb|rainbow|any), combo
+ * Goal types: score, color, ice, locks, ingredients, chocolate, crates, fuses, make (rocket|bomb|rainbow|any), combo
  */
 (function (root) {
   'use strict';
@@ -17,7 +20,9 @@
   function make(sp, t) { return { type: 'make', special: sp, target: t }; }
   function combo(t) { return { type: 'combo', target: t }; }
   function ing(n) { return { type: 'ingredients', target: n }; }
-  var ICE = { type: 'ice' }, LOCKS = { type: 'locks' }, CHOC = { type: 'chocolate' };
+  var ICE = { type: 'ice' }, LOCKS = { type: 'locks' }, CHOC = { type: 'chocolate' }, CRATES = { type: 'crates' };
+  function fuses(n) { return { type: 'fuses', target: n }; }
+  var O = 1, Pu = 5;
   var E8 = '........', E9 = '.........';
 
   var defs = [
@@ -82,17 +87,78 @@
     { w: 9, h: 9, moves: 30, colors: 6, goals: [combo(2), score(15000)] },
     { w: 9, h: 9, moves: 42, colors: 5, goals: [combo(2), CHOC, ICE, ing(2)], boss: true,
       tip: 'Final boss: Grumble’s Cocoa Vault. Free the last magic sweets!',
-      layout: ['IIIIIIIII', 'I.......I', 'I.DDDDD.I', 'I.D...D.I', 'I.D...D.I', 'I.D...D.I', 'I.DDDDD.I', 'I.......I', 'IIIIIIIII'] }
+      layout: ['IIIIIIIII', 'I.......I', 'I.DDDDD.I', 'I.D...D.I', 'I.D...D.I', 'I.D...D.I', 'I.DDDDD.I', 'I.......I', 'IIIIIIIII'] },
+
+    // ---- 31-40 Bubblegum Bay: candy crates (never spread, up to 3 layers) ----
+    { moves: 20, colors: 5, goals: [CRATES], tip: 'Candy crates block the board. Match next to them to crack them open. They never grow.',
+      layout: [E8, E8, E8, '.XX..XX.', '.XX..XX.', E8, E8, E8] },
+    { moves: 22, colors: 5, goals: [CRATES, score(5000)], tip: 'Pink crates take two hits.',
+      layout: [E8, '...YY...', '..YYYY..', '.YY..YY.', '..YYYY..', '...YY...', E8, E8] },
+    { moves: 20, colors: 5, goals: [color(3, 30)], tip: 'A breather. Specials blast crates too.',
+      layout: [E8, '.X....X.', E8, '...XX...', E8, '.X....X.', E8, E8] },
+    { moves: 26, colors: 5, goals: [ing(2), CRATES],
+      layout: [E8, E8, 'X.X..X.X', 'X.X..X.X', E8, E8, E8, E8] },
+    { moves: 30, colors: 5, goals: [CRATES, ICE], tip: 'Golden crates take three hits. Bombs next to them are your best friend.',
+      layout: ['ZZ....ZZ', 'Z......Z', '..iiii..', '..iiii..', '..iiii..', '..iiii..', 'Z......Z', 'ZZ....ZZ'] },
+    { time: 70, colors: 5, goals: [score(9000), CRATES], tip: 'Timed! Crack the crates and score fast.',
+      layout: [E8, E8, '..X..X..', E8, E8, '..X..X..', E8, E8] },
+    { moves: 22, colors: 5, goals: [make('bomb', 3), CRATES],
+      layout: [E8, E8, E8, 'YY....YY', 'YY....YY', E8, E8, E8] },
+    { moves: 26, colors: 5, goals: [LOCKS, CRATES],
+      layout: [E8, 'KKXXXXKK', E8, E8, E8, E8, 'KKXXXXKK', E8] },
+    { w: 9, h: 9, moves: 32, colors: 5, goals: [CRATES, ing(2)], tip: 'A crate maze. Clear a path for the acorns.',
+      layout: [E9, 'XXXX.XXXX', E9, 'X.XXXXX.X', E9, 'XXXX.XXXX', E9, E9, E9] },
+    { w: 9, h: 9, moves: 34, colors: 5, goals: [CRATES, ICE, combo(1)], boss: true,
+      tip: 'Boss: Grumble packed the bay’s magic sweets into golden crates!',
+      layout: ['ZZZ...ZZZ', 'Z.......Z', 'Z.iiiii.Z', '..iIIIi..', '..iIIIi..', '..iIIIi..', 'Z.iiiii.Z', 'Z.......Z', 'ZZZ...ZZZ'] },
+
+    // ---- 41-50 Fizzy Falls: fizz bombs (clear them before the counter hits 0) ----
+    { moves: 18, colors: 5, goals: [score(4000)], fuse: { n: 1, start: 10, rate: 0 },
+      tip: 'Fizz bombs! The number counts down each move. Match it before it reaches 0, or the level is lost.' },
+    { moves: 20, colors: 5, goals: [fuses(4)], fuse: { n: 2, start: 9, rate: 0.08 }, tip: 'Defuse 4 fizz bombs. New ones keep falling in.' },
+    { moves: 24, colors: 5, goals: [ICE], fuse: { n: 2, start: 10, rate: 0.03 },
+      layout: [E8, E8, E8, E8, 'iiiiiiii', 'iiiiiiii', 'iiiiiiii', E8] },
+    { w: 7, h: 7, moves: 20, colors: 5, goals: [color(0, 25)], fuse: { n: 1, start: 12, rate: 0.02 }, tip: 'A small breather. Keep an eye on that counter.' },
+    { moves: 26, colors: 5, goals: [CHOC], fuse: { n: 1, start: 10, rate: 0.03 }, tip: 'Spreading chocolate AND a fizz bomb. Decide what matters most each move.',
+      layout: [E8, E8, E8, E8, E8, E8, '..CCCC..', '.CCCCCC.'] },
+    { moves: 24, colors: 5, goals: [fuses(6), make('rocket', 2)], fuse: { n: 2, start: 8, rate: 0.1 } },
+    { moves: 22, colors: 5, goals: [CRATES], fuse: { n: 2, start: 10, rate: 0.03 },
+      layout: [E8, E8, '.YY..YY.', E8, E8, '.YY..YY.', E8, E8] },
+    { time: 75, colors: 5, goals: [fuses(5), score(7000)], fuse: { n: 2, start: 12, rate: 0.1 }, tip: 'Timed! Fizz bombs still count down with every move you make.' },
+    { moves: 32, colors: 5, goals: [ing(3)], fuse: { n: 2, start: 11, rate: 0.03 } },
+    { w: 9, h: 9, moves: 36, colors: 5, goals: [CHOC, ICE, fuses(3)], fuse: { n: 3, start: 9, rate: 0.04 }, boss: true,
+      tip: 'Boss: Grumble’s fizz factory is about to blow. Defuse it!',
+      layout: [E9, E9, E9, E9, 'iiiiiiiii', 'iiiiiiiii', '..DDDDD..', '.DDDDDDD.', 'DDDDDDDDD'] },
+
+    // ---- 51-60 Starlight Bakery: everything together ----
+    { moves: 26, colors: 5, goals: [combo(2), CRATES],
+      layout: [E8, E8, 'X..XX..X', E8, E8, 'X..XX..X', E8, E8] },
+    { moves: 32, colors: 5, goals: [make('rainbow', 2), ICE],
+      layout: ['IIIIIIII', 'I......I', 'I......I', 'I......I', 'I......I', 'I......I', 'I......I', 'IIIIIIII'] },
+    { moves: 24, colors: 6, goals: [score(12000)], tip: 'A breather with six colours. Go for big cascades near the bottom.' },
+    { moves: 30, colors: 5, goals: [LOCKS, CRATES, ICE],
+      layout: [E8, 'KKKKKKKK', '..YYYY..', 'iiiiiiii', 'iiiiiiii', '..YYYY..', 'KKKKKKKK', E8] },
+    { time: 80, colors: 5, goals: [combo(2), score(10000)], tip: 'Timed combos. Build specials side by side, then swap them together.' },
+    { moves: 28, colors: 5, goals: [combo(1), ICE], fuse: { n: 2, start: 10, rate: 0.03 },
+      layout: [E8, E8, E8, 'iiiiiiii', 'iiiiiiii', 'iiiiiiii', E8, E8] },
+    { moves: 30, colors: 5, goals: [ing(2), CRATES], tip: 'Pip’s star-shaped cake. Crack the golden centre.',
+      layout: ['#..##..#', '........', '...ZZ...', '..ZZZZ..', '..ZZZZ..', '...ZZ...', '........', '#..##..#'] },
+    { w: 9, h: 9, moves: 28, colors: 5, goals: [CHOC, CRATES],
+      layout: [E9, E9, E9, 'X..X.X..X', E9, E9, '..CCCCC..', '.CCCCCCC.', 'CCCCCCCCC'] },
+    { w: 9, h: 9, moves: 28, colors: 6, goals: [score(20000)], fuse: { n: 2, start: 11, rate: 0.03 } },
+    { w: 9, h: 9, moves: 46, colors: 5, goals: [combo(2), CRATES, ICE, ing(2)], fuse: { n: 2, start: 12, rate: 0.02 }, boss: true,
+      tip: 'Final boss: Grumble’s Starlight Oven. Everything you have learned, all at once!',
+      layout: ['IIIIIIIII', 'I.......I', 'I.ZZZZZ.I', 'I.Z...Z.I', 'I.Z...Z.I', 'I.Z...Z.I', 'I.ZZZZZ.I', 'I.......I', 'IIIIIIIII'] }
   ];
 
   // Difficulty labels measured by the playtest bot (node test.js --bot 24) on 2026-11-14
-  var DIFF = ["Easy","Easy","Easy","Easy","Easy","Easy","Medium","Hard","Easy","Easy","Easy","Easy","Easy","Easy","Easy","Easy","Hard","Medium","Easy","Medium","Medium","Hard","Easy","Easy","Medium","Medium","Hard","Medium","Super Hard","Super Hard"];
-  var BOTWIN = [100,100,100,100,100,100,83,58,100,96,100,100,92,92,100,100,58,83,92,83,88,58,100,92,75,75,50,79,29,33];
+  var DIFF = ["Easy","Easy","Easy","Easy","Easy","Easy","Medium","Hard","Easy","Easy","Easy","Easy","Easy","Easy","Easy","Easy","Hard","Medium","Easy","Medium","Medium","Hard","Easy","Easy","Medium","Medium","Hard","Medium","Super Hard","Super Hard","Easy","Easy","Easy","Medium","Hard","Easy","Easy","Easy","Medium","Super Hard","Easy","Medium","Medium","Easy","Easy","Medium","Easy","Easy","Hard","Hard","Medium","Super Hard","Easy","Easy","Medium","Medium","Hard","Easy","Hard","Super Hard"];
+  var BOTWIN = [100,100,100,100,100,100,83,58,100,96,100,100,92,92,100,100,58,83,92,83,88,58,100,92,75,75,50,79,29,33,100,96,96,75,58,100,96,92,79,33,100,83,79,100,92,88,100,92,50,58,79,42,100,92,75,75,63,96,67,33];
 
   var LEVELS = defs.map(function (d, i) {
     var l = Object.assign({ w: 8, h: 8 }, d);
     l.id = i + 1;
-    l.difficulty = DIFF ? DIFF[i] : 'Easy'; l.botWin = BOTWIN ? BOTWIN[i] : null;
+    l.difficulty = DIFF ? DIFF[i] : 'Medium'; l.botWin = BOTWIN ? BOTWIN[i] : null;
     var sg = l.goals.filter(function (g) { return g.type === 'score'; })[0];
     if (sg) l.stars = [sg.target, Math.round(sg.target * 1.35), Math.round(sg.target * 1.8)];
     else { var base = (l.moves || 25) * 250; l.stars = [base, Math.round(base * 2.5), base * 4]; }
@@ -106,7 +172,13 @@
     { name: 'Frostberry Peaks', from: 11, to: 20, cls: 'w2', icon: '🏔️',
       story: 'Grumble fled into the frozen peaks, leaving walls of chocolate behind him. Pip follows the trail of icy berries.' },
     { name: 'Cocoa Caverns', from: 21, to: 30, cls: 'w3', icon: '🍫',
-      story: 'Deep under the mountain, Grumble guards the Cocoa Vault, where the last magic sweets are hidden.' }
+      story: 'Deep under the mountain, Grumble guards the Cocoa Vault, where the magic sweets are hidden.' },
+    { name: 'Bubblegum Bay', from: 31, to: 40, cls: 'w4', icon: '🫧',
+      story: 'Grumble escaped by sea and packed the sweets into candy crates along the bubblegum shore. Pip sets sail after him.' },
+    { name: 'Fizzy Falls', from: 41, to: 50, cls: 'w5', icon: '💥',
+      story: 'Up the river, Grumble is brewing fizz bombs in his waterfall factory. Pip must defuse them before they pop.' },
+    { name: 'Starlight Bakery', from: 51, to: 60, cls: 'w6', icon: '🌟',
+      story: 'The final journey: Grumble’s Starlight Oven, where every trick he knows is waiting. Bake him a lesson!' }
   ];
 
   var api = { LEVELS: LEVELS, WORLDS: WORLDS };

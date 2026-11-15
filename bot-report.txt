@@ -1,3 +1,39 @@
+Engine rules
+  ok  new boards have no matches and at least one move (all 30 levels x 20 seeds)
+  ok  horizontal match of 3 detected and cleared
+  ok  invalid swap is rejected and reverted, no move used
+  ok  match 4 creates Rocket at swapped cell
+  ok  match 5 creates Rainbow Orb
+  ok  L shape creates Magic Bomb
+  ok  Rocket clears full row when triggered
+  ok  Rainbow + candy clears every candy of that colour
+  ok  Bomb + Bomb = Star Crusher clears 5x5
+  ok  Rocket + Rocket clears row and column
+  ok  gravity + refill leaves no empty playable cell
+  ok  ice: single hit melts ice, double ice needs two
+  ok  locked tiles cannot be swapped; clearing breaks the lock
+  ok  ingredient reaching bottom row is collected
+  ok  ingredients are immune to matches and specials
+  ok  shuffle produces a board with no matches and a valid move
+  ok  hammer clears a tile; refuses bare ingredient
+  ok  extra moves booster adds 5 moves (15s on timed)
+  ok  cascade multiplier increases score per tile
+  ok  chocolate: blocks swaps, is damaged by adjacent clears, two layers need two hits
+  ok  chocolate spreads when a move hits none, and not when one is hit
+  ok  goal: make specials counts rockets/bombs/rainbows
+  ok  goal: combo counts special+special swaps
+  ok  booster Colour Blast clears a colour; refuses rainbow
+  ok  booster Magic Swap swaps any two free tiles without using a move
+  ok  hammer chips chocolate
+  ok  crates: 3 layers need 3 hits, never spread, goal counts
+  ok  fizz bombs: placed at start, tick down each move, explode -> level lost
+  ok  fizz bomb defused by clearing it (goal: fuses)
+  ok  Sugar Rush finale converts leftover moves to rockets and fires them
+  ok  start boosters place a special on a plain candy
+  ok  fuzz: 300 random games keep invariants (stable board, no gaps, a move always exists)
+
+32 passed, 0 failed
+
 Bot playtest (24 runs per level, greedy bot; humans with planning do better)
   L 1  win 100%  avg stars 2.7
   L 2  win 100%  avg stars 1.9
@@ -29,3 +65,33 @@ Bot playtest (24 runs per level, greedy bot; humans with planning do better)
   L28  win  79%  avg stars 2.6
   L29  win  29%  avg stars 2.9
   L30  win  33%  avg stars 3.0
+  L31  win 100%  avg stars 1.2
+  L32  win  96%  avg stars 3.0
+  L33  win  96%  avg stars 2.9
+  L34  win  75%  avg stars 2.2
+  L35  win  58%  avg stars 3.0
+  L36  win 100%  avg stars 1.6
+  L37  win  96%  avg stars 2.9
+  L38  win  92%  avg stars 2.3
+  L39  win  79%  avg stars 2.7
+  L40  win  33%  avg stars 3.0
+  L41  win 100%  avg stars 2.0
+  L42  win  83%  avg stars 1.4
+  L43  win  79%  avg stars 2.5
+  L44  win 100%  avg stars 2.0
+  L45  win  92%  avg stars 1.8
+  L46  win  88%  avg stars 2.0
+  L47  win 100%  avg stars 1.8
+  L48  win  92%  avg stars 2.3
+  L49  win  50%  avg stars 2.8
+  L50  win  58%  avg stars 3.0
+  L51  win  79%  avg stars 2.7
+  L52  win  42%  avg stars 3.0
+  L53  win 100%  avg stars 1.0
+  L54  win  92%  avg stars 2.3
+  L55  win  75%  avg stars 3.0
+  L56  win  75%  avg stars 2.3
+  L57  win  63%  avg stars 1.9
+  L58  win  96%  avg stars 2.7
+  L59  win  67%  avg stars 1.0
+  L60  win  33%  avg stars 3.0

@@ -1,4 +1,5 @@
 # SWEETVERSE browser test – 2026-11-14 v0.3. Real input on a phone-size viewport.
+# 2026-11-15 v0.4: finale, crates, fizz bombs, start boosters, tutorial hand
 import asyncio, json
 from playwright.async_api import async_playwright
 R = []
@@ -39,7 +40,8 @@ async def main():
         await pg.click('.node:nth-child(3)'); await pg.wait_for_timeout(200)
         rec('Locked level cannot be opened', not await pg.is_visible('#modal .card'))
         await pg.click('.node.current'); await pg.wait_for_timeout(300); await pg.screenshot(path='shot_7_intro.png')
-        await pg.click('#modal .btn.green'); await pg.wait_for_timeout(600)
+        await pg.click('#modal .btn.green'); await pg.wait_for_timeout(1300)
+        rec('Tutorial hand shows the first move on level 1', await pg.evaluate("!!document.getElementById('hand')"))
         await pg.evaluate('__sv.game.goals[0].target=1e9')  # keep the level open while testing mechanics
         async def geo():
             return await pg.evaluate("(()=>{const r=document.querySelector('#board').getBoundingClientRect();return [r.left,r.top,parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cs'))]})()")
@@ -113,7 +115,10 @@ async def main():
         await pg.click('#pauseBtn'); await pg.click('#modal .btn.blue'); await pg.wait_for_timeout(150); await pg.click('#modal .btn:not(.blue)'); await pg.wait_for_timeout(500)
         rec('Restart (with confirmation)', await pg.evaluate('__sv.game.moves')==15 and await pg.evaluate('__sv.game.score')==0)
         # win
-        await pg.evaluate('__sv.game.score=99999'); a,bb = await pg.evaluate(mv); await mouse_swipe(a,bb); await pg.wait_for_timeout(1800)
+        await pg.evaluate('__sv.game.score=99999'); a,bb = await pg.evaluate(mv); await mouse_swipe(a,bb)
+        await pg.wait_for_timeout(1500); await pg.screenshot(path='shot_11a_finale.png')
+        await pg.wait_for_selector('#modal .card', timeout=30000); await pg.wait_for_timeout(600)
+        rec('Sugar Rush finale uses up leftover moves', await pg.evaluate('__sv.game.moves')==0)
         await pg.screenshot(path='shot_11_win.png'); txt = await pg.inner_text('#modal')
         rec('Level completion: victory screen, stars, coins', 'complete' in txt and await pg.evaluate('__sv.S.progress.unlocked')==2 and await pg.evaluate('__sv.S.progress.stars[1]')==3)
         await pg.wait_for_timeout(1500)
@@ -125,8 +130,26 @@ async def main():
         rec('Level failure: defeat screen', 'Out of moves' in txt)
         await pg.click('#modal .btn.green'); await pg.wait_for_timeout(400)
         rec('Retry after failure', await pg.evaluate('__sv.game.moves')==16 and not await pg.is_visible('#modal .card'))
+        # v0.4 content
+        await pg.evaluate("__sv.startLevel(31)"); await pg.wait_for_timeout(600); await pg.screenshot(path='shot_L31.png')
+        rec('Candy crates render (level 31)', await pg.evaluate("[...document.querySelectorAll('.crate')].filter(e=>e.style.display=='block').length")==8)
+        await pg.evaluate("__sv.startLevel(42)"); await pg.wait_for_timeout(600); await pg.screenshot(path='shot_L42.png')
+        rec('Fizz bomb counters render (level 42)', await pg.evaluate("document.querySelectorAll('.fz').length")==2)
+        await pg.evaluate("__sv.game.cells.forEach(c=>{if(c.tile&&c.tile.fuse)c.tile.fuse=1}); __sv.game.goals[0].target=99")
+        a,bb = await pg.evaluate(mv); await mouse_swipe(a,bb); await pg.wait_for_timeout(800)
+        txt = await pg.inner_text('#modal'); rec('Fizz bomb reaching 0 loses the level', 'fizz bomb popped' in txt.lower(), txt[:40].replace(chr(10),' '))
+        await pg.evaluate("__sv.S.progress.unlocked=60")
+        await pg.click('#modal .x'); await pg.wait_for_timeout(500)
+        await pg.evaluate("document.querySelector('.node[aria-label=\"Level 4\"]').click()"); await pg.wait_for_timeout(300)
+        c0 = await pg.evaluate('__sv.S.profile.coins'); await pg.click('.sb input[data-k=rocket]'); await pg.screenshot(path='shot_intro_start.png')
+        await pg.click('#modal .btn.green'); await pg.wait_for_timeout(900)
+        rec('Start booster: Rocket placed and 30 coins spent', await pg.evaluate("__sv.game.cells.filter(c=>c.tile&&c.tile.special).length")>=1 and await pg.evaluate('__sv.S.profile.coins')==c0-30)
+        await pg.click('#pauseBtn'); await pg.wait_for_timeout(200); await pg.click('#modal .btn:has-text(\"Quit\")'); await pg.wait_for_timeout(200); await pg.click('#modal .btn:not(.blue)'); await pg.wait_for_timeout(500)
+        await pg.evaluate("document.querySelector('#mapScroll').scrollTop=99999"); await pg.wait_for_timeout(300)
+        await pg.screenshot(path='shot_map_w6.png')
+        rec('Map shows 6 worlds and 60 levels', await pg.evaluate("[document.querySelectorAll('.world').length, document.querySelectorAll('.node').length]")==[6,60])
         # obstacles render
-        for lv in (18, 20, 30):
+        for lv in (18, 20, 30, 40, 50, 60):
             await pg.evaluate(f'__sv.startLevel({lv})'); await pg.wait_for_timeout(600); await pg.screenshot(path=f'shot_L{lv}.png')
         rec('Chocolate visible on level 20', await pg.evaluate("[...document.querySelectorAll('.choc')].filter(e=>e.style.display=='block').length") == await pg.evaluate('__sv.game.chocCount()'))
         # particles drain

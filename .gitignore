@@ -1,5 +1,5 @@
-# 2026-11-14 generated test output
 shot_*.png
 contact*.png
 dist/
 __pycache__/
+*.bundle

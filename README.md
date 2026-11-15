@@ -1,11 +1,12 @@
 # SWEETVERSE – Match & Magic (playable prototype)
 
-**Version:** v0.3 · **Date:** 2026-11-14
+**Version:** v0.4 · **Date:** 2026-11-15
 
 An original match-3 puzzle game that runs in any modern browser, on phone, tablet or desktop.
 It is one self-contained HTML file with no external assets, APIs or paid services.
 
 ## Changelog
+- **2026-11-15 v0.4** *Performance:* removed per-tile shadow filters and repaint-heavy glow animations (replaced with cheap equivalents), static background in gameplay, automatic **Lite graphics** mode when the frame rate is low, plus a Settings switch. *Content:* **60 levels in 6 worlds** (new: Bubblegum Bay, Fizzy Falls, Starlight Bakery). *New mechanics:* **Candy Crates** (1–3 layers, never spread), **Fizz Bombs** (countdown sweets: the level is lost if one reaches 0), **Sugar Rush finale** (leftover moves turn into rockets that all fire), **start boosters** (begin with a Rocket, Bomb or Rainbow Orb for coins), **tutorial hand** on levels 1–2, ice drawn as a clearer frosted layer, 7 new achievements, 2 new stats. Previous files in `archive/` (`*.v03.*`).
 - **2026-11-14 v0.3** Re-planned the 30 levels to the brief's six progression bands. Added chocolate blockers (1–2 layers, spreading), goals for making specials and firing combos, and two new boosters (Colour Blast, Magic Swap). New screens: splash, main menu, player profile with stats, achievements, daily reward, coins, booster inventory. Canvas particle system, volume sliders, reduced-motion mode, landscape layout, session-only storage fallback. Fixed: world background hidden behind the board; booster labels unreadable; map title wrapping.
 - **2026-11-14 v0.2** Bot-tuned difficulty and star thresholds.
 - **2026-11-14 v0.1** Engine, 30 levels, home/map/game screens, synthesised audio.
@@ -25,8 +26,9 @@ Earlier versions of changed files are kept in `archive/`.
 | `style.css` | All visuals (candies, obstacles, screens). Everything is drawn with CSS gradients, clip-paths and Canvas. |
 | `template.html` | Page skeleton. `build.py` inlines the CSS and JS into it. |
 | `build.py` | Builds `sweetverse.html`. |
-| `test.js` | 27 engine unit tests, plus the playtest bot (`--bot N`). |
-| `smoke.py` | 31 browser tests in real Chrome (mouse, touch, reload). |
+| `test.js` | 32 engine unit tests, plus the playtest bot (`--bot N`). |
+| `perf.py`, `perf_ab.py`, `prof.py` | Performance benchmark, A/B effect test, JS CPU profile. |
+| `smoke.py` | 38 browser tests in real Chrome (mouse, touch, reload). |
 | `archive/` | Previous versions of replaced files. |
 
 ## 2. How to run, test and change it (step by step)
@@ -48,8 +50,8 @@ python3 smoke.py              # 5. browser tests (edit the chrome path at the to
 { moves: 25, colors: 5, goals: [ICE, make('bomb', 2)], tip: 'Pip says hi',
   layout: ['........','..iiii..','..iIIi..','..iIIi..','..iiii..','.CC..CC.','LLLLLLLL','........'] }
 ```
-Layout key: `.` normal · `#` hole · `i` ice · `I` double ice · `L` lock · `K` lock+ice · `C` chocolate · `D` dark chocolate.
-Goal types: `score`, `color`, `ice`, `locks`, `ingredients`, `chocolate`, `make` (rocket/bomb/rainbow/any), `combo`.
+Layout key: `.` normal · `#` hole · `i` ice · `I` double ice · `L` lock · `K` lock+ice · `C` chocolate · `D` dark chocolate · `X` `Y` `Z` candy crate (1/2/3 layers). Fizz bombs: add `fuse: { n: 2, start: 10, rate: 0.03 }` to a level.
+Goal types: `score`, `color`, `ice`, `locks`, `ingredients`, `chocolate`, `crates`, `fuses`, `make` (rocket/bomb/rainbow/any), `combo`.
 Then run `node test.js --bot 24` to measure difficulty, and paste the new labels into `DIFF`/`BOTWIN`. Add a world to `WORLDS` for every 10 levels.
 
 ## 3. Taking it outside Claude
@@ -74,14 +76,54 @@ Lock the app to portrait in `AndroidManifest.xml` (`android:screenOrientation="p
 
 **D. Port to a native engine later.** `engine.js` has no DOM code and emits a list of events (`match`, `clear`, `special`, `spawn`, …). That makes it a direct reference for a C#/Dart port. Keep the tests: port `test.js` alongside it.
 
+## Candy Crush comparison (2026-11-15)
+
+Mechanics and feel only. Sweetverse copies none of King's characters, art, names or level layouts.
+
+| What players love in the genre | Sweetverse v0.4 | Note |
+|---|---|---|
+| Satisfying swaps, cascades, combo words | ✅ | "Sweet! Tasty! Delicious! Divine! Sugar Rush!" |
+| 4-match / 5-match / L-T specials | ✅ Rocket, Rainbow Orb, Magic Bomb | |
+| Special + special combos | ✅ 5 kinds | Mega Blast, Mega Blast XL, Star Crusher, Rainbow Magic, Colour Explosion |
+| End-of-level payoff with leftover moves | ✅ **Sugar Rush finale** | New in v0.4 |
+| Pre-level boosters | ✅ **Start boosters** (coins) | New in v0.4 |
+| In-level boosters | ✅ 5 | |
+| Jelly-style "clear the board" goal | ✅ Ice (1–2 layers) | |
+| Static multi-layer blockers | ✅ **Candy Crates** (1–3 layers) | New in v0.4 |
+| Spreading blocker | ✅ Chocolate | |
+| Countdown bombs | ✅ **Fizz Bombs** | New in v0.4 |
+| Bring-down ingredients | ✅ Acorns | |
+| Locked sweets | ✅ Locks | |
+| Timed levels | ✅ | |
+| Story map with episodes and bosses | ✅ 6 worlds, 6 bosses | |
+| Daily reward, achievements | ✅ | |
+| Animated tutorial | ✅ hand on levels 1–2 | New in v0.4 |
+| Blockers that stop gravity (sweets slide around them diagonally) | ❌ | Sweets pass through. Biggest remaining gameplay gap. |
+| Portals, conveyor belts, cannons | ❌ | Need the gravity rework first |
+| Hundreds of levels | ⚠️ 60 | Engine supports more; each needs design and tuning |
+| Lives system | ❌ by choice | Exists to sell refills; players dislike it |
+| Leaderboards, friends, events | ❌ | Need a backend |
+| Professional art, composed music, voice | ⚠️ | Code-drawn art and a generated music loop |
+
+## Performance (2026-11-15)
+Measured with `perf_ab.py`: Chrome at a phone viewport, CPU throttled **10×** (worse than a budget phone), level 20, fixed board seed, 6 moves.
+
+| Build | Average fps | Janky frames (>34 ms) |
+|---|---|---|
+| v0.3 | 37.2 | 25 |
+| **v0.4** | **50.0** | **6** |
+| v0.4 with every decorative effect off | 51.1 | 6 |
+
+v0.4 is now as fast as having every effect switched off. A CPU profile shows game logic uses under 1% of CPU; the rest is the browser drawing. At 6× throttle v0.4 averages 56 fps. The v0.3 number came from a random board, so expect ±3 fps noise. *Still untested on a real low-end phone.*
+
 ---
 
 ## 4. Testing report (actual results, 2026-11-14)
 
-### 4a. Engine unit tests: `node test.js` → **27 passed, 0 failed**
-Covers: no matches and at least one move on every new board (30 levels × 20 seeds); horizontal/vertical matches; invalid swap rejected with no move used; 4-match → Rocket; 5-match → Rainbow Orb; L-shape → Magic Bomb; Rocket clears its row; Rainbow + candy clears that colour; Bomb + Bomb = Star Crusher (5×5); Rocket + Rocket clears row and column; gravity and refill leave no gaps; single and double ice; locks; acorns collected at the bottom and immune to blasts; shuffle always produces a playable board; hammer; extra moves (and +15 s on timed levels); cascade multiplier; chocolate (blocking, adjacent damage, two layers, spreading or not spreading); make-special and combo goals; Colour Blast; Magic Swap; hammer on chocolate. Plus a **fuzz test: 300 random games across all levels**, checking after every move that the board is stable, has no gaps and always has a valid move.
+### 4a. Engine unit tests: `node test.js` → **32 passed, 0 failed** (re-run 2026-11-15)
+Covers: no matches and at least one move on every new board (30 levels × 20 seeds); horizontal/vertical matches; invalid swap rejected with no move used; 4-match → Rocket; 5-match → Rainbow Orb; L-shape → Magic Bomb; Rocket clears its row; Rainbow + candy clears that colour; Bomb + Bomb = Star Crusher (5×5); Rocket + Rocket clears row and column; gravity and refill leave no gaps; single and double ice; locks; acorns collected at the bottom and immune to blasts; shuffle always produces a playable board; hammer; extra moves (and +15 s on timed levels); cascade multiplier; chocolate (blocking, adjacent damage, two layers, spreading or not spreading); make-special and combo goals; Colour Blast; Magic Swap; hammer on chocolate; **v0.4:** crates (3 layers, no spreading), fizz bombs (placement, countdown, explosion = loss, defuse goal), Sugar Rush finale, start boosters. Plus a **fuzz test: 300 random games across all levels**, checking after every move that the board is stable, has no gaps and always has a valid move.
 
-### 4b. Browser tests: `python3 smoke.py` → **31 / 31 PASS** (run twice, same result)
+### 4b. Browser tests: `python3 smoke.py` → **38 / 38 PASS** (2026-11-15)
 Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) and 1440×900 (desktop). Mouse drags, CDP **touch** swipes and taps.
 
 | Test | Result | Note |
@@ -92,6 +134,7 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Booster inventory: buy Magic Swap with coins | PASS |  |
 | Profile: rename + avatar | PASS |  |
 | Locked level cannot be opened | PASS |  |
+| Tutorial hand shows the first move on level 1 | PASS |  |
 | Valid swap (mouse drag) | PASS | moves 15->14 score 0->180 |
 | Board refilled, stable after cascades | PASS | matches left 0, empty 0, tiles 64 |
 | Valid swap (touch swipe) | PASS | moves 14->13 |
@@ -101,25 +144,31 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Special + special combo fires (Mega Blast XL) | PASS |  |
 | Hammer booster | PASS |  |
 | Colour Blast booster | PASS |  |
-| Magic Swap booster (no move used) | PASS | tiles [255, 88]->[88, 255] |
+| Magic Swap booster (no move used) | PASS | tiles [244, 156]->[156, 244] |
 | Shuffle booster | PASS |  |
 | Extra Moves booster | PASS |  |
 | Booster mode can be cancelled | PASS |  |
 | Pause and resume | PASS |  |
 | Restart (with confirmation) | PASS |  |
+| Sugar Rush finale uses up leftover moves | PASS |  |
 | Level completion: victory screen, stars, coins | PASS |  |
 | Achievement unlocked on first win | PASS |  |
 | Level failure: defeat screen | PASS |  |
 | Retry after failure | PASS |  |
+| Candy crates render (level 31) | PASS |  |
+| Fizz bomb counters render (level 42) | PASS |  |
+| Fizz bomb reaching 0 loses the level | PASS | ✕ A fizz bomb popped!  So close! Still t |
+| Start booster: Rocket placed and 30 coins spent | PASS |  |
+| Map shows 6 worlds and 60 levels | PASS |  |
 | Chocolate visible on level 20 | PASS |  |
 | Particle pool empties when idle (no growth) | PASS |  |
 | Landscape layout fits screen | PASS |  |
 | No page scroll during gameplay | PASS |  |
-| Save and restore after reload (localStorage) | PASS | [2,{"1":3},"Somil",368] |
+| Save and restore after reload (localStorage) | PASS | [60,{"1":3},"Somil",438] |
 | No console errors | PASS |  |
 
 ### 4c. Playtest bot: `node test.js --bot 24`
-A greedy one-move-lookahead bot plays every level 24 times. Real players who plan ahead should do better. The win rate sets each level's difficulty label (≥90% Easy, ≥70% Medium, ≥45% Hard, below that Super Hard).
+A greedy one-move-lookahead bot plays every level 24 times. Each world opens with an easy introduction to its new obstacle, has breather levels after hard ones, and ends with a boss. Real players who plan ahead should do better. The win rate sets each level's difficulty label (≥90% Easy, ≥70% Medium, ≥45% Hard, below that Super Hard).
 
 | Level | Board | Limit | Goals | Difficulty | Bot win |
 |---|---|---|---|---|---|
@@ -153,6 +202,36 @@ A greedy one-move-lookahead bot plays every level 24 times. Real players who pla
 | 28 | 8x8 | 30 moves | make(rainbow) 2 + chocolate | Medium | 79% |
 | 29 | 9x9 | 30 moves | combo 2 + score 15000 | Super Hard | 29% |
 | 30 | 9x9 | 42 moves | combo 2 + chocolate + ice + ingredients 2 | Super Hard | 33% |
+| 31 | 8x8 | 20 moves | crates | Easy | 100% |
+| 32 | 8x8 | 22 moves | crates + score 5000 | Easy | 96% |
+| 33 | 8x8 | 20 moves | color 30 | Easy | 96% |
+| 34 | 8x8 | 26 moves | ingredients 2 + crates | Medium | 75% |
+| 35 | 8x8 | 30 moves | crates + ice | Hard | 58% |
+| 36 | 8x8 | 70s | score 9000 + crates | Easy | 100% |
+| 37 | 8x8 | 22 moves | make(bomb) 3 + crates | Easy | 96% |
+| 38 | 8x8 | 26 moves | locks + crates | Easy | 92% |
+| 39 | 9x9 | 32 moves | crates + ingredients 2 | Medium | 79% |
+| 40 | 9x9 | 34 moves | crates + ice + combo 1 | Super Hard | 33% |
+| 41 | 8x8 | 18 moves | score 4000 · fizz bombs | Easy | 100% |
+| 42 | 8x8 | 20 moves | fuses 4 · fizz bombs | Medium | 83% |
+| 43 | 8x8 | 24 moves | ice · fizz bombs | Medium | 79% |
+| 44 | 7x7 | 20 moves | color 25 · fizz bombs | Easy | 100% |
+| 45 | 8x8 | 26 moves | chocolate · fizz bombs | Easy | 92% |
+| 46 | 8x8 | 24 moves | fuses 6 + make(rocket) 2 · fizz bombs | Medium | 88% |
+| 47 | 8x8 | 22 moves | crates · fizz bombs | Easy | 100% |
+| 48 | 8x8 | 75s | fuses 5 + score 7000 · fizz bombs | Easy | 92% |
+| 49 | 8x8 | 32 moves | ingredients 3 · fizz bombs | Hard | 50% |
+| 50 | 9x9 | 36 moves | chocolate + ice + fuses 3 · fizz bombs | Hard | 58% |
+| 51 | 8x8 | 26 moves | combo 2 + crates | Medium | 79% |
+| 52 | 8x8 | 32 moves | make(rainbow) 2 + ice | Super Hard | 42% |
+| 53 | 8x8 | 24 moves | score 12000 | Easy | 100% |
+| 54 | 8x8 | 30 moves | locks + crates + ice | Easy | 92% |
+| 55 | 8x8 | 80s | combo 2 + score 10000 | Medium | 75% |
+| 56 | 8x8 | 28 moves | combo 1 + ice · fizz bombs | Medium | 75% |
+| 57 | 8x8 | 30 moves | ingredients 2 + crates | Hard | 63% |
+| 58 | 9x9 | 28 moves | chocolate + crates | Easy | 96% |
+| 59 | 9x9 | 28 moves | score 20000 · fizz bombs | Hard | 67% |
+| 60 | 9x9 | 46 moves | combo 2 + crates + ice + ingredients 2 · fizz bombs | Super Hard | 33% |
 
 ### 4d. Brief §14 checklist
 | Item | Status |
@@ -172,7 +251,7 @@ A greedy one-move-lookahead bot plays every level 24 times. Real players who pla
 
 ## 5. Development tracker
 
-**Done and tested:** engine; 8×8 plus 7×7 and 9×9 boards and shaped boards; 6 candy types; Rocket, Rainbow Orb, Magic Bomb; Mega Blast (rocket+rocket, rocket+bomb), Star Crusher (bomb+bomb), Colour Explosion (rainbow+special, rainbow+rainbow); 5 boosters; ice (1–2 layers), locks, chocolate (1–2 layers, spreading), acorn collectibles; 8 goal types; 30 levels in 3 worlds; splash, menu, map, game, pause, victory, defeat, inventory, settings, profile; daily reward; coins; 15 achievements; stats; Web Audio sound effects and music; volume sliders; haptics; reduced motion; landscape; localStorage with session fallback.
+**Done and tested:** engine; 60 levels / 6 worlds; candy crates; fizz bombs; Sugar Rush finale; start boosters; tutorial hand; auto lite graphics; 8×8 plus 7×7 and 9×9 boards and shaped boards; 6 candy types; Rocket, Rainbow Orb, Magic Bomb; Mega Blast (rocket+rocket, rocket+bomb), Star Crusher (bomb+bomb), Colour Explosion (rainbow+special, rainbow+rainbow); 5 boosters; ice (1–2 layers), locks, chocolate (1–2 layers, spreading), acorn collectibles; 8 goal types; 30 levels in 3 worlds; splash, menu, map, game, pause, victory, defeat, inventory, settings, profile; daily reward; coins; 15 achievements; stats; Web Audio sound effects and music; volume sliders; haptics; reduced motion; landscape; localStorage with session fallback.
 
 **Pending / not built:** leaderboards, friends, cloud save, accounts (each needs a backend); real-money purchases and ads (excluded by the brief); multi-language; a visual level editor (levels are edited as data in `levels.js`); more worlds.
 

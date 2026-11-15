@@ -262,3 +262,48 @@ body.reduced .tile{transition-duration:.15s!important}
 body.reduced .sparkles,body.reduced .env,body.reduced .deco,body.reduced .logo,body.reduced .pipBig{animation:none!important}
 body.reduced .sp-rainbow .candy,body.reduced .node.current{animation:none!important}
 .topbar .title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:20px}
+
+/* ---- v0.4 performance (2026-11-15): replace per-tile filters and repaint-heavy animations ---- */
+.tile{filter:none;will-change:auto}
+.tile::before{content:'';position:absolute;left:16%;right:16%;bottom:4%;height:16%;border-radius:50%;background:radial-gradient(ellipse at center,rgba(0,0,0,.38),rgba(0,0,0,0) 70%)}
+.tile.ing::before{display:none}
+.tiles-moving .tile{will-change:transform}
+#game .sparkles{animation:none}
+.sp-row .candy,.sp-col .candy{animation:none}
+.sp-row .candy::after,.sp-col .candy::after{animation:stripePulse 1.4s ease-in-out infinite}
+@keyframes stripePulse{50%{opacity:.35}}
+.sp-bomb .candy{animation:bombPulse 1.2s ease-in-out infinite}
+body.lite .sp-row .candy::after,body.lite .sp-col .candy::after,body.lite .sp-bomb .candy,body.lite .sp-rainbow .candy,body.lite .tile.hint .candy{animation:none!important}
+body.lite .tile::before{display:none}
+body.lite .sparkles{display:none}
+
+/* ---- v0.4 content (2026-11-15): crates, fizz bombs, worlds 4-6, start boosters, tutorial hand ---- */
+.bg.w4{background:radial-gradient(circle at 20% 10%,#ffd1f0 0,transparent 40%),radial-gradient(circle at 85% 35%,#9ff0ff 0,transparent 35%),linear-gradient(170deg,#ff8fd8,#7a7cf0 55%,#3a3ab0)}
+.bg.w5{background:radial-gradient(circle at 20% 10%,#c8fff0 0,transparent 40%),radial-gradient(circle at 80% 30%,#ffe98a 0,transparent 35%),linear-gradient(170deg,#3fd3c6,#2a8fd8 55%,#1b3f8f)}
+.bg.w6{background:radial-gradient(circle at 20% 10%,#fff3c4 0,transparent 40%),radial-gradient(circle at 80% 30%,#ffb8e0 0,transparent 35%),linear-gradient(170deg,#3a2a7a,#1f1650 55%,#0e0a2e)}
+.world.w4{background:linear-gradient(170deg,#ff9ad8,#7f80ee)}
+.world.w5{background:linear-gradient(170deg,#4fd8c8,#2e7fd0)}
+.world.w6{background:linear-gradient(170deg,#4a3a96,#1c1450)}
+.crate{position:absolute;width:var(--cs);height:var(--cs);display:none;border-radius:9px;
+  background:linear-gradient(90deg,transparent 42%,rgba(255,255,255,.85) 42% 58%,transparent 58%),linear-gradient(0deg,transparent 42%,rgba(255,255,255,.85) 42% 58%,transparent 58%),
+  repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px),linear-gradient(#7ff0c0,#1fb37a);
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.5),inset 0 -4px 0 rgba(0,0,0,.25),0 2px 3px rgba(0,0,0,.35)}
+.crate.l2{background:linear-gradient(90deg,transparent 42%,rgba(255,255,255,.85) 42% 58%,transparent 58%),linear-gradient(0deg,transparent 42%,rgba(255,255,255,.85) 42% 58%,transparent 58%),
+  repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 6px,transparent 6px 12px),linear-gradient(#ff9fcf,#e0307a)}
+.crate.l3{background:linear-gradient(90deg,transparent 42%,rgba(255,80,120,.9) 42% 58%,transparent 58%),linear-gradient(0deg,transparent 42%,rgba(255,80,120,.9) 42% 58%,transparent 58%),
+  repeating-linear-gradient(45deg,rgba(255,255,255,.25) 0 6px,transparent 6px 12px),linear-gradient(#ffe680,#e09a00)}
+.crate.crack{animation:crack .36s forwards}
+.fz{position:absolute;right:2%;bottom:2%;min-width:46%;height:46%;border-radius:50%;background:radial-gradient(circle at 40% 35%,#555,#111);color:#fff;font-weight:900;
+  font-size:calc(var(--cs)*.3);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #ff5a3c;z-index:2}
+.fz.hot{background:radial-gradient(circle at 40% 35%,#ff7a5c,#c4141a);animation:pulseTxt .5s infinite alternate}
+.startB{background:#fff;border-radius:14px;padding:8px 10px;margin-top:12px;box-shadow:0 2px 0 #f0b6d4;font-size:14px}
+.startB small{opacity:.7}
+.sb{display:flex;align-items:center;gap:4px;background:#fff4fb;border-radius:10px;padding:5px 8px;font-weight:800;border:2px solid #f0b6d4;cursor:pointer}
+.sb input{accent-color:#e8336e;width:18px;height:18px}
+.hand{position:absolute;font-size:calc(var(--cs)*.8);z-index:6;pointer-events:none;left:0;top:0;animation:handMove 1.3s ease-in-out infinite;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))}
+@keyframes handMove{0%,15%{transform:translate(calc(var(--x0) - 30%),calc(var(--y0) - 10%))}60%,100%{transform:translate(calc(var(--x1) - 30%),calc(var(--y1) - 10%));opacity:.4}}
+
+/* 2026-11-15: ice drawn as a frosted layer over the sweet so it is easy to see */
+.iceov{position:absolute;width:var(--cs);height:var(--cs);display:none;pointer-events:none;border-radius:8px}
+.iceov.i1{display:block;background:linear-gradient(135deg,rgba(255,255,255,.42),rgba(170,225,255,.16) 45%,rgba(255,255,255,.3));box-shadow:inset 0 0 0 2px rgba(255,255,255,.85),inset 0 0 8px rgba(150,215,255,.8)}
+.iceov.i2{display:block;background:linear-gradient(135deg,rgba(255,255,255,.6),rgba(150,210,255,.35) 45%,rgba(255,255,255,.5)),repeating-linear-gradient(60deg,transparent 0 9px,rgba(255,255,255,.7) 9px 11px);box-shadow:inset 0 0 0 3px #fff,inset 0 0 10px rgba(120,200,255,.95)}
