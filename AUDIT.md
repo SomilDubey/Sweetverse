@@ -19,7 +19,7 @@ Board 7×7 / 8×8 / 9×9 and shaped boards · 6 sweet colours (different shapes 
 ## 3. Partially implemented
 | Feature | What exists | What's missing |
 |---|---|---|
-| Failure explanation | Defeat screen lists the unfinished goals | No "why" (e.g. "the fizz bomb popped", "3 ice left at the bottom") |
+| Failure explanation | **Done v0.6:** defeat screen names the biggest missing goal and gives one concrete tip | — |
 | Visual polish | Glossy CSS sweets, particles, beams, rings | No character animation beyond emoji; no star trails |
 | Audio | Generated SFX + one music loop | No world-specific ambience; one loop for all worlds |
 | Level validation | Bot plays each level 24×; every level won at least sometimes | Not a formal proof of solvability (impossible for random refills) |

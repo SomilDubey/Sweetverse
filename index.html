@@ -318,6 +318,22 @@ body.lite .sparkles{display:none}
 
 /* 2026-11-15 v0.5: hint button */
 .icon-btn.hintb{background:linear-gradient(#ffe27a,#f5a400);box-shadow:0 4px 0 #b06d00,inset 0 2px 0 rgba(255,255,255,.5)}
+
+/* ---- v0.6 visuals (2026-11-15). Only transform/opacity animations, so they stay cheap on phones ---- */
+.candy{background:radial-gradient(ellipse 34% 24% at 34% 25%,rgba(255,255,255,.95),rgba(255,255,255,0) 100%),radial-gradient(ellipse 60% 22% at 50% 92%,rgba(255,255,255,.35),transparent 70%),radial-gradient(circle at 50% 120%,rgba(0,0,0,.25),transparent 60%),radial-gradient(circle at 45% 40%,var(--a),var(--b) 75%)}
+.tile.land .candy{animation:land .26s ease-out}
+@keyframes land{0%{transform:scale(1.12,.84) translateY(6%)}55%{transform:scale(.95,1.06)}100%{transform:none}}
+.tile.press .candy{transform:scale(.88);transition:transform .08s}
+.impact{position:absolute;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(255,255,255,.95) 0,var(--ic) 30%,transparent 65%);animation:impact .32s ease-out forwards;opacity:.85}
+@keyframes impact{from{transform:scale(.3);opacity:1}to{transform:scale(1.2);opacity:0}}
+.starFly{position:fixed;z-index:70;font-size:30px;pointer-events:none;margin:-15px 0 0 -15px;transition:transform .7s cubic-bezier(.4,-.3,.6,1),opacity .7s;filter:drop-shadow(0 0 8px #ffe066)}
+.pipCheer,.pipSad{font-size:46px;line-height:1;margin:-4px 0 4px}
+.pipCheer{animation:cheer .6s ease-in-out infinite alternate}
+@keyframes cheer{from{transform:translateY(0) rotate(-8deg)}to{transform:translateY(-10px) rotate(8deg)}}
+.pipSad{filter:grayscale(.4);transform:rotate(-12deg)}
+body.reduced .pipCheer{animation:none}
+body.lite .impact,body.lite .starFly{display:none}
+body.lite .tile.land .candy{animation:none}
 </style>
 </head>
 <body>
@@ -1310,6 +1326,9 @@ body.lite .sparkles{display:none}
  * 2026-11-15 v0.5 versioned save (v2) with migration from v0.1-v0.4 keys, backup copy and
  *                 corruption recovery; smart goal-aware hints + hint button; audio voice
  *                 limiting. Previous: archive/ui.v04.js
+ * 2026-11-15 v0.6 visuals: landing squash, press feedback, match impact flash, star trail
+ *                 to the star bar, richer candy material, Pip on win/lose screens, failure
+ *                 explanation on the defeat screen. Previous: archive/ui.v05.js
  */
 (function () {
   'use strict';
@@ -1739,7 +1758,7 @@ body.lite .sparkles{display:none}
   // ---------- game state ----------
   var game = null, cur = 0, cs = 48, busy = false, over = false, paused = false, mode = null, swapFirst = null;
   var tileEls = new Map(), bgEls = [], lockEls = [], chocEls = [], crateEls = [], iceEls = [], spawnFrom = new Map(), born = new Set();
-  var timerId = null, hintId = null, selected = null, down = null, levelStats = null, movesMade = 0;
+  var timerId = null, hintId = null, selected = null, down = null, levelStats = null, movesMade = 0, landing = [];
   var board, tilesL, overlayL, fxL, boardWrap;
   function stopTimers() { if (timerId) clearInterval(timerId); timerId = null; if (hintId) clearTimeout(hintId); hintId = null; }
   function tr(x, y) { return 'translate(' + x * cs + 'px,' + y * cs + 'px)'; }
@@ -1816,6 +1835,10 @@ body.lite .sparkles{display:none}
         el.style.transform = tr(p[0], spawnFrom.has(t.id) ? spawnFrom.get(t.id) : p[1]);
         void el.offsetWidth;
       }
+      var prevI = el.dataset.i != null ? +el.dataset.i : null;
+      if (prevI != null && prevI !== i && game.xy(prevI)[1] < p[1] && !S.settings.reduced) landing.push(el);
+      else if (prevI == null && spawnFrom.has(t.id) && !S.settings.reduced) landing.push(el);
+      el.dataset.i = i;
       var cc = (t.kind === 'ingredient' ? 'tile ing' : 'tile' + (t.special ? ' sp-' + t.special : '')) +
         (selected === i || swapFirst === i ? ' sel' : '') + (born.has(t.id) ? ' born' : '');
       if (el.className !== cc) el.className = cc;
@@ -1828,6 +1851,10 @@ body.lite .sparkles{display:none}
       el.style.transform = tr(p[0], p[1]);
     });
     tileEls.forEach(function (el, id) { if (!seen.has(id)) { el.remove(); tileEls.delete(id); } });
+    if (landing.length) {
+      var land = landing; landing = [];
+      setTimeout(function () { land.forEach(function (el) { el.classList.remove('land'); void el.offsetWidth; el.classList.add('land'); }); }, T(250));
+    }
     spawnFrom.clear();
     if (born.size) setTimeout((function (ids) { return function () { ids.forEach(function (id) { var e = tileEls.get(id); if (e) e.classList.remove('born'); }); }; })(Array.from(born)), 500);
     born.clear();
@@ -1844,7 +1871,7 @@ body.lite .sparkles{display:none}
     $('#starFill').style.width = Math.min(100, game.score / top * 100) + '%';
     var mk = $('#starMarks');
     if (mk.dataset.l != cur) { mk.dataset.l = cur; mk.innerHTML = l.stars.map(function (s) { return '<span class="mk" style="left:' + (s / top * 100) + '%">⭐</span>'; }).join(''); }
-    Array.from(mk.children).forEach(function (e, k) { var on = game.score >= l.stars[k]; if (on && !e.classList.contains('on')) { e.classList.add('on'); sfx.star(k); } else if (!on) e.classList.remove('on'); });
+    Array.from(mk.children).forEach(function (e, k) { var on = game.score >= l.stars[k]; if (on && !e.classList.contains('on')) { e.classList.add('on'); sfx.star(k); starTrail(e); } else if (!on) e.classList.remove('on'); });
     $('#goalRow').innerHTML = goalsHtml(game.goals, game);
   }
 
@@ -1902,6 +1929,17 @@ body.lite .sparkles{display:none}
     emit(c[0], c[1], '#ffffff', 30, 6);
     sfx.combo();
   }
+  // a star flies from the board to the star bar when a star threshold is reached (2026-11-15)
+  function starTrail(target) {
+    if (S.settings.reduced || !board) return;
+    var b = board.getBoundingClientRect(), t = target.getBoundingClientRect();
+    var s = document.createElement('div'); s.className = 'starFly'; s.textContent = '⭐';
+    s.style.left = (b.left + b.width / 2) + 'px'; s.style.top = (b.top + b.height / 2) + 'px';
+    document.body.appendChild(s); void s.offsetWidth;
+    s.style.transform = 'translate(' + (t.left + t.width / 2 - b.left - b.width / 2) + 'px,' + (t.top + t.height / 2 - b.top - b.height / 2) + 'px) scale(.6) rotate(360deg)';
+    s.style.opacity = '0.9';
+    setTimeout(function () { s.remove(); }, 750);
+  }
   function shake() { if (S.settings.reduced) { buzz(30); return; } boardWrap.classList.remove('shake'); void boardWrap.offsetWidth; boardWrap.classList.add('shake'); buzz(35); }
 
   function drain() {
@@ -1914,6 +1952,7 @@ body.lite .sparkles{display:none}
           e.groups.forEach(function (g) {
             var sx = 0, sy = 0; g.cells.forEach(function (i) { var c = center(i); sx += c[0]; sy += c[1]; });
             floatText(sx / g.cells.length, sy / g.cells.length, '+' + g.cells.length * 60 * e.cascade);
+            if (!S.settings.reduced && !liteOn()) fxEl('impact', { left: (sx / g.cells.length - cs) + 'px', top: (sy / g.cells.length - cs) + 'px', width: cs * 2 + 'px', height: cs * 2 + 'px', '--ic': COLORS[g.color] || '#fff' }, 320);
           });
           break;
         case 'clear': popTile(e.id, e.idx, e.color); break;
@@ -2001,6 +2040,7 @@ body.lite .sparkles{display:none}
       body: '<div class="bigStars"><span>⭐</span><span>⭐</span><span>⭐</span></div><p style="font-size:28px;font-weight:900;margin:0">' + game.score.toLocaleString() + '</p>' +
         (newBest && prev ? '<p class="newBest">New best!</p>' : '') +
         '<p class="coinLine">🪙 +<span id="coinCount">0</span>' + (first ? ' <small>(incl. first-clear bonus)</small>' : '') + '</p>' +
+        '<div class="pipCheer">🧚</div>' +
         (isLast && first ? '<p>🧚 Pip has brought every magic sweet home, and Grumble has promised to share from now on. More worlds are coming soon!</p>' : ''),
       buttons: (isLast ? [] : [{ label: 'Next level', cls: 'green', fn: function () { show('map'); renderMap(); openIntro(cur + 1); } }])
         .concat([{ label: 'Replay', cls: 'blue', fn: function () { startLevel(cur); } }, { label: 'World map', cls: '', fn: goMap }]),
@@ -2037,8 +2077,29 @@ body.lite .sparkles{display:none}
     btns.push({ label: 'Try again', cls: 'green', fn: function () { countGame(false); save(); startLevel(cur); } });
     btns.push({ label: 'World map', cls: 'blue', fn: function () { countGame(false); save(); goMap(); } });
     if (game.exploded) btns = btns.filter(function (b) { return b.cls !== 'gold'; });
-    showModal({ title: game.exploded ? 'A fizz bomb popped!' : timed ? 'Time’s up!' : 'Out of moves!', body: '<p>So close! Still to do:</p><div class="row">' + goalsHtml(game.goals, game) + '</div>',
+    showModal({ title: game.exploded ? 'A fizz bomb popped!' : timed ? 'Time’s up!' : 'Out of moves!', body: '<div class="pipSad">🧚</div><p>So close! Still to do:</p><div class="row">' + goalsHtml(game.goals, game) + '</div>' + '<div class="tipBox"><span class="pip">💡</span><span>' + failReason() + '</span></div>',
       buttons: btns, onClose: function () { countGame(false); save(); goMap(); } });
+  }
+  // Clear failure explanation: what blocked the player most, and one concrete tip (2026-11-15)
+  function failReason() {
+    if (game.exploded) return 'A fizz bomb reached 0. Bombs with a red counter (3 or less) need clearing first. Any match that includes the bomb defuses it.';
+    var worst = null, ratio = -1;
+    game.goals.forEach(function (g) { var left = game.goalLeft(g), r = left / Math.max(1, g.type === 'score' ? g.target : g.target || 1); if (left > 0 && r > ratio) { ratio = r; worst = g; } });
+    if (!worst) return 'You were close. Try again!';
+    var left = game.goalLeft(worst);
+    var tips = {
+      score: 'You needed ' + left.toLocaleString() + ' more points. Matches near the bottom cause more cascades, and specials score big.',
+      color: left + ' ' + COLOR_NAMES[worst.color] + ' sweets were still needed. A Rainbow Orb swapped with that colour clears them all at once.',
+      ice: left + ' ice tiles were left. Rockets aimed along the icy rows melt a whole line in one go.',
+      locks: left + ' locks were left. Locked sweets can’t move, so make matches that run through them.',
+      ingredients: left + ' acorns still had to reach the bottom. Clear the sweets directly underneath them.',
+      chocolate: left + ' chocolate squares were left. Break at least one each turn, or it grows.',
+      crates: left + ' crate squares were left. Bombs and Rockets next to crates hit several at once.',
+      fuses: left + ' fizz bombs still needed defusing. Include them in your matches.',
+      make: 'You still needed ' + left + ' ' + SP_NAME[worst.special] + '. Look for 4 in a row, L/T shapes or 5 in a row before making small matches.',
+      combo: 'You still needed ' + left + ' combo(s). Build two specials next to each other, then swap them together.'
+    };
+    return tips[worst.type] || 'Try again: the 💡 hint shows the best move for your goals.';
   }
   function goMap() { stopTimers(); show('map'); renderMap(); }
   function confetti(n) {
@@ -2088,6 +2149,7 @@ body.lite .sparkles{display:none}
       if (busy || over) return;
       var i = cellAt(ev); if (i == null) return;
       down = { i: i, x: ev.clientX, y: ev.clientY, moved: false };
+      var pt = game.cells[i].tile, pel = pt && tileEls.get(pt.id); if (pel) { pel.classList.add('press'); down.el = pel; }
       try { board.setPointerCapture(ev.pointerId); } catch (e) {}
       idleReset();
     });
@@ -2095,7 +2157,7 @@ body.lite .sparkles{display:none}
       if (!down || down.moved || busy || mode) return;
       var dx = ev.clientX - down.x, dy = ev.clientY - down.y;
       if (Math.hypot(dx, dy) < cs * 0.35) return;
-      down.moved = true;
+      down.moved = true; if (down.el) down.el.classList.remove('press');
       var p = game.xy(down.i), nx = p[0], ny = p[1];
       if (Math.abs(dx) > Math.abs(dy)) nx += Math.sign(dx); else ny += Math.sign(dy);
       if (nx < 0 || ny < 0 || nx >= game.w || ny >= game.h) return;
@@ -2104,14 +2166,14 @@ body.lite .sparkles{display:none}
     });
     board.addEventListener('pointerup', function () {
       if (!down) return;
-      var d = down; down = null;
+      var d = down; down = null; if (d.el) d.el.classList.remove('press');
       if (d.moved || busy || over) return;
       if (mode) { useBoosterOn(d.i); return; }
       if (selected != null && selected !== d.i && adjacent(selected, d.i)) { var s = selected; selected = null; render(); doSwap(s, d.i); }
       else if (selected === d.i) { selected = null; render(); }
       else { selected = d.i; render(); }
     });
-    board.addEventListener('pointercancel', function () { down = null; });
+    board.addEventListener('pointercancel', function () { if (down && down.el) down.el.classList.remove('press'); down = null; });
     $('#game').addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
   }
@@ -2169,7 +2231,7 @@ body.lite .sparkles{display:none}
       body: slider('sfxVol', '🔊 Sound') + slider('musicVol', '🎵 Music') + toggle('haptics', '📳 Vibration') + toggle('reduced', '🐢 Reduced motion') + toggle('autoHint', '💡 Auto hints after 6 s') +
         '<div class="setRow">⚡ Lite graphics<button class="toggle' + (liteOn() ? ' on' : '') + '" data-k="lite" aria-label="Lite graphics"></button></div>' +
         (persistent ? '' : '<p class="warnNote">Your browser is blocking storage here, so progress lasts only for this session.</p>') +
-        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.5 · 15 Nov 2026</p>',
+        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.6 · 15 Nov 2026</p>',
       buttons: [{ label: 'Done', cls: 'green', fn: onBack }, { label: 'Reset progress', cls: '', fn: function () {
         confirmModal('Reset progress?', 'Do you want to delete all your stars, coins, boosters, stats and achievements? This can’t be undone.', 'Yes, delete everything', function () {
           Object.keys(DEF).forEach(function (k) { S[k] = JSON.parse(JSON.stringify(DEF[k])); }); save(); applyReduced(); applyVolumes(); show('home'); refreshHome(); toast('Progress reset');

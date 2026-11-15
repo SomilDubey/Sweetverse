@@ -310,3 +310,19 @@ body.lite .sparkles{display:none}
 
 /* 2026-11-15 v0.5: hint button */
 .icon-btn.hintb{background:linear-gradient(#ffe27a,#f5a400);box-shadow:0 4px 0 #b06d00,inset 0 2px 0 rgba(255,255,255,.5)}
+
+/* ---- v0.6 visuals (2026-11-15). Only transform/opacity animations, so they stay cheap on phones ---- */
+.candy{background:radial-gradient(ellipse 34% 24% at 34% 25%,rgba(255,255,255,.95),rgba(255,255,255,0) 100%),radial-gradient(ellipse 60% 22% at 50% 92%,rgba(255,255,255,.35),transparent 70%),radial-gradient(circle at 50% 120%,rgba(0,0,0,.25),transparent 60%),radial-gradient(circle at 45% 40%,var(--a),var(--b) 75%)}
+.tile.land .candy{animation:land .26s ease-out}
+@keyframes land{0%{transform:scale(1.12,.84) translateY(6%)}55%{transform:scale(.95,1.06)}100%{transform:none}}
+.tile.press .candy{transform:scale(.88);transition:transform .08s}
+.impact{position:absolute;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(255,255,255,.95) 0,var(--ic) 30%,transparent 65%);animation:impact .32s ease-out forwards;opacity:.85}
+@keyframes impact{from{transform:scale(.3);opacity:1}to{transform:scale(1.2);opacity:0}}
+.starFly{position:fixed;z-index:70;font-size:30px;pointer-events:none;margin:-15px 0 0 -15px;transition:transform .7s cubic-bezier(.4,-.3,.6,1),opacity .7s;filter:drop-shadow(0 0 8px #ffe066)}
+.pipCheer,.pipSad{font-size:46px;line-height:1;margin:-4px 0 4px}
+.pipCheer{animation:cheer .6s ease-in-out infinite alternate}
+@keyframes cheer{from{transform:translateY(0) rotate(-8deg)}to{transform:translateY(-10px) rotate(8deg)}}
+.pipSad{filter:grayscale(.4);transform:rotate(-12deg)}
+body.reduced .pipCheer{animation:none}
+body.lite .impact,body.lite .starFly{display:none}
+body.lite .tile.land .candy{animation:none}

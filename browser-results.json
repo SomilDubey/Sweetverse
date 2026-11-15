@@ -37,7 +37,7 @@
  {
   "test": "Valid swap (mouse drag)",
   "result": "PASS",
-  "note": "moves 15->14 score 0->540"
+  "note": "moves 15->14 score 0->12240"
  },
  {
   "test": "Board refilled, stable after cascades",
@@ -62,7 +62,7 @@
  {
   "test": "Four-match creates a Rocket (live UI)",
   "result": "PASS",
-  "note": "specials on board 0"
+  "note": "specials on board 1"
  },
  {
   "test": "Special + special combo fires (Mega Blast XL)",
@@ -82,7 +82,7 @@
  {
   "test": "Magic Swap booster (no move used)",
   "result": "PASS",
-  "note": "tiles [467, 308]->[308, 467]"
+  "note": "tiles [461, 383]->[383, 88]"
  },
  {
   "test": "Shuffle booster",
@@ -147,7 +147,7 @@
  {
   "test": "Fizz bomb reaching 0 loses the level",
   "result": "PASS",
-  "note": "\u2715 A fizz bomb popped!  So close! Still t"
+  "note": "\u2715 A fizz bomb popped! \ud83e\uddda  So close! Still"
  },
  {
   "test": "Start booster: Rocket placed and 30 coins spent",
