@@ -334,6 +334,25 @@ body.lite .sparkles{display:none}
 body.reduced .pipCheer{animation:none}
 body.lite .impact,body.lite .starFly{display:none}
 body.lite .tile.land .candy{animation:none}
+
+/* ---- v0.6 phase 3 (2026-11-15): XP badge, missions, chests ---- */
+.lvWrap{display:flex;flex-direction:column;align-items:flex-start;margin-left:4px}
+#lvBadge{font-size:11px;font-weight:900;background:#ffd23f;color:#6b3a00;border-radius:8px;padding:1px 6px}
+.xpBar{display:block;width:60px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin-top:2px;overflow:hidden}
+#xpFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#7ef0a8,#18b863)}
+.menuGrid .wide{grid-column:span 2}
+.mission{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:8px 10px;margin:6px 0;text-align:left;box-shadow:0 2px 0 #f0b6d4}
+.mission.claimed{opacity:.55}
+.mission .mi{font-size:26px}.mission .md{flex:1;display:flex;flex-direction:column;gap:3px}.mission small{opacity:.75}
+.mbar{height:8px;border-radius:5px;background:#f6d4e6;overflow:hidden}.mbar>div{height:100%;background:linear-gradient(90deg,#ff8cc0,#e8336e);border-radius:5px}
+.mbar.big{height:12px}
+.chestBtn{display:flex;flex-direction:column;align-items:center;gap:2px;border:2px solid #f0b6d4;background:#fff;border-radius:14px;padding:8px 12px;font-family:inherit;color:#5a1a4a;min-width:84px}
+.chestBtn span{font-size:30px}.chestBtn:disabled{opacity:.45}
+.chestOpen{font-size:72px;animation:chestShake .6s ease-in-out 2}
+@keyframes chestShake{25%{transform:rotate(-12deg) scale(1.1)}75%{transform:rotate(12deg) scale(1.1)}}
+.chestLoot{animation:popIn .4s 1.2s both}
+.xpGain{color:#18b863}
+body.reduced .chestOpen{animation:none}
 </style>
 </head>
 <body>
@@ -344,13 +363,13 @@ body.lite .tile.land .candy{animation:none}
   <div class="sub">Match &amp; Magic</div>
   <div id="loadBar"><div id="loadFill"></div></div>
   <div id="tapStart" class="hidden">Tap to start</div>
-  <div class="studio">An original prototype · v0.5</div>
+  <div class="studio">An original prototype · v0.6</div>
 </section>
 
 <section id="home" class="screen hidden">
   <div class="bg"></div><div class="sparkles"></div>
   <div class="homeTop">
-    <button class="who" id="profileBtn2" onclick="document.getElementById('profileBtn').click()"><span class="av0" id="homeAvatar">🧁</span><span id="homeName">Sweet Player</span></button>
+    <button class="who" id="profileBtn2" onclick="document.getElementById('profileBtn').click()"><span class="av0" id="homeAvatar">🧁</span><span id="homeName">Sweet Player</span><span class="lvWrap"><span id="lvBadge">Lv 1</span><span class="xpBar"><span id="xpFill"></span></span></span></button>
     <div class="pill">🪙 <span class="coinVal">0</span> · ⭐ <span id="homeStars">0</span></div>
   </div>
   <div class="logo">SWEET<br>VERSE</div>
@@ -361,6 +380,7 @@ body.lite .tile.land .candy{animation:none}
     <button class="btn blue" id="shopBtn">🎒 Boosters</button>
     <button class="btn" id="profileBtn">🏆 Profile</button>
     <button class="btn blue" id="homeSettings">⚙️ Settings</button>
+    <button class="btn green wide" id="missionsBtn">📜 Missions &amp; chests<span class="dot hidden" id="missionDot"></span></button>
   </div>
 </section>
 
@@ -423,6 +443,103 @@ body.lite .tile.land .candy{animation:none}
 </section>
 
 <div id="modal" class="hidden"></div>
+<script>/* SWEETVERSE meta progression – pure logic, no DOM (unit-tested in test.js)
+ * 2026-11-15 v0.6 phase 3: player XP and levels, weekly missions, treasure chests,
+ *                 daily streak with recovery.
+ */
+(function (root) {
+  'use strict';
+
+  // ---------- XP and player level ----------
+  // Level n needs 80 + 40*(n-1) XP to reach n+1 (gentle curve: level 10 at ~2,160 XP).
+  function xpNeeded(level) { return 80 + 40 * (level - 1); }
+  function levelFromXp(xp) {
+    var level = 1, left = Math.max(0, xp | 0);
+    while (left >= xpNeeded(level)) { left -= xpNeeded(level); level++; }
+    return { level: level, into: left, need: xpNeeded(level) };
+  }
+  var XP = { win: 20, perStar: 10, firstClear: 15, loss: 5, special: 1, combo: 3, daily: 10, mission: 40 };
+  // XP for one finished level attempt
+  function xpForGame(r) {
+    var xp = r.won ? XP.win + r.stars * XP.perStar + (r.firstClear ? XP.firstClear : 0) : XP.loss;
+    return xp + (r.specials || 0) * XP.special + (r.combos || 0) * XP.combo;
+  }
+  // chest earned when reaching a new player level: gold every 10, silver every 5, else bronze
+  function levelUpChest(level) { return level % 10 === 0 ? 'gold' : level % 5 === 0 ? 'silver' : 'bronze'; }
+
+  // ---------- small seeded RNG + date helpers ----------
+  function hash(str) { var h = 2166136261; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rng(seed) { var s = seed >>> 0; return function () { s = (s + 0x6D2B79F5) >>> 0; var t = Math.imul(s ^ (s >>> 15), s | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function dayStr(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  // week id: the date of that week's Monday (local time)
+  function weekId(d) { var m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return dayStr(m); }
+
+  // ---------- weekly missions ----------
+  var POOL = [
+    { id: 'rockets', text: 'Make 25 Rockets', stat: 'rockets', target: 25, icon: '🚀' },
+    { id: 'bombs', text: 'Make 15 Magic Bombs', stat: 'bombs', target: 15, icon: '💣' },
+    { id: 'rainbows', text: 'Make 5 Rainbow Orbs', stat: 'rainbows', target: 5, icon: '🌈' },
+    { id: 'combos', text: 'Fire 6 special combos', stat: 'combos', target: 6, icon: '💥' },
+    { id: 'wins', text: 'Win 10 levels', stat: 'wins', target: 10, icon: '🏁' },
+    { id: 'stars', text: 'Earn 15 new stars', stat: 'stars', target: 15, icon: '⭐' },
+    { id: 'ice', text: 'Melt 60 ice tiles', stat: 'ice', target: 60, icon: '❄️' },
+    { id: 'choc', text: 'Break 40 chocolate', stat: 'choc', target: 40, icon: '🍫' },
+    { id: 'crates', text: 'Crack 30 crate layers', stat: 'crates', target: 30, icon: '🎁' },
+    { id: 'acorns', text: 'Collect 8 acorns', stat: 'acorns', target: 8, icon: '🌰' },
+    { id: 'defused', text: 'Defuse 10 fizz bombs', stat: 'defused', target: 10, icon: '🧨' },
+    { id: 'matches', text: 'Make 300 matches', stat: 'matches', target: 300, icon: '✨' }
+  ];
+  var MISSION_CHEST = ['bronze', 'silver', 'gold'];
+  // 3 different missions per week, the same for everyone that week. Baseline = stats at week start.
+  function weeklyMissions(week, stats) {
+    var r = rng(hash('sv-week-' + week)), pool = POOL.slice(), out = [];
+    for (var k = 0; k < 3; k++) {
+      var m = pool.splice(Math.floor(r() * pool.length), 1)[0];
+      out.push({ id: m.id, text: m.text, stat: m.stat, target: m.target, icon: m.icon, base: stats[m.stat] || 0, claimed: false, chest: MISSION_CHEST[k] });
+    }
+    return { week: week, list: out };
+  }
+  function missionProgress(m, stats) { return Math.min(m.target, Math.max(0, (stats[m.stat] || 0) - m.base)); }
+  // keep this week's missions, or start a fresh set (baseline = current stats)
+  function ensureWeek(missions, now, stats) {
+    var w = weekId(now);
+    return missions && missions.week === w ? missions : weeklyMissions(w, stats);
+  }
+
+  // ---------- treasure chests ----------
+  var CHESTS = {
+    bronze: { coins: [30, 60], items: 1, name: 'Bronze chest', icon: '🧰' },
+    silver: { coins: [80, 140], items: 2, name: 'Silver chest', icon: '🎁' },
+    gold: { coins: [200, 320], items: 3, name: 'Golden chest', icon: '👑' }
+  };
+  var ITEMS = ['hammer', 'blast', 'swap', 'shuffle', 'moves'];
+  function openChest(type, seed) {
+    var c = CHESTS[type], r = rng(seed == null ? (Math.random() * 4294967296) >>> 0 : seed);
+    var res = { coins: c.coins[0] + Math.floor(r() * (c.coins[1] - c.coins[0] + 1)), items: {} };
+    for (var k = 0; k < c.items; k++) { var it = ITEMS[Math.floor(r() * ITEMS.length)]; res.items[it] = (res.items[it] || 0) + 1; }
+    return res;
+  }
+
+  // ---------- daily streak with recovery ----------
+  // state: { last: 'Y-M-D', streak: n }. Returns what the daily screen should offer today.
+  function dailyStatus(state, now) {
+    var today = dayStr(now), d1 = new Date(now), d2 = new Date(now);
+    d1.setDate(d1.getDate() - 1); d2.setDate(d2.getDate() - 2);
+    if (state.last === today) return { canClaim: false, dayIndex: (state.streak - 1) % 7, recoverable: false };
+    if (state.last === dayStr(d1)) return { canClaim: true, dayIndex: state.streak % 7, recoverable: false };
+    // missed exactly one day: the streak can be kept for a small coin price
+    if (state.last === dayStr(d2) && state.streak > 0) return { canClaim: true, dayIndex: 0, recoverable: true, recoverIndex: state.streak % 7, recoverCost: 50 };
+    return { canClaim: true, dayIndex: 0, recoverable: false };
+  }
+  var RECOVER_COST = 50;
+
+  var api = { xpNeeded: xpNeeded, levelFromXp: levelFromXp, xpForGame: xpForGame, XP: XP, levelUpChest: levelUpChest,
+    weekId: weekId, dayStr: dayStr, weeklyMissions: weeklyMissions, missionProgress: missionProgress, ensureWeek: ensureWeek,
+    POOL: POOL, CHESTS: CHESTS, openChest: openChest, dailyStatus: dailyStatus, RECOVER_COST: RECOVER_COST };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.SweetMeta = api;
+})(this);
+</script>
 <script>/* SWEETVERSE – Match & Magic : core match-3 engine (pure logic, no DOM)
  * 2026-11-14  v0.1  initial engine: board, matching, specials, combos, gravity,
  *                   ice, locks, ingredients, reshuffle, boosters, goals, stars.
@@ -1329,10 +1446,12 @@ body.lite .tile.land .candy{animation:none}
  * 2026-11-15 v0.6 visuals: landing squash, press feedback, match impact flash, star trail
  *                 to the star bar, richer candy material, Pip on win/lose screens, failure
  *                 explanation on the defeat screen. Previous: archive/ui.v05.js
+ * 2026-11-15 v0.6 phase 3: player XP/level (meta.js), weekly missions, treasure chests,
+ *                 daily streak recovery, Missions screen. Previous: archive/ui.v06p2.js
  */
 (function () {
   'use strict';
-  var E = window.SweetEngine, LEVELS = window.SWEET_LEVELS, WORLDS = window.SWEET_WORLDS;
+  var M = window.SweetMeta, E = window.SweetEngine, LEVELS = window.SWEET_LEVELS, WORLDS = window.SWEET_WORLDS;
   var $ = function (s) { return document.querySelector(s); };
   var COLORS = ['#ff4d6d', '#ff9f1c', '#ffd60a', '#2ed58a', '#3a86ff', '#b15cff'];
   var COLOR_NAMES = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
@@ -1345,7 +1464,8 @@ body.lite .tile.land .candy{animation:none}
     progress: { unlocked: 1, stars: {}, best: {} },
     inv: { hammer: 3, blast: 1, swap: 2, shuffle: 2, moves: 2 },
     settings: { sfxVol: 0.8, musicVol: 0.4, haptics: true, reduced: prefersReduced, lite: null, autoHint: true },
-    profile: { name: 'Sweet Player', avatar: '🧁', coins: 100 },
+    profile: { name: 'Sweet Player', avatar: '🧁', coins: 100, xp: 0 },
+    meta: { missions: null, chests: { bronze: 0, silver: 0, gold: 0 } },
     stats: { played: 0, wins: 0, losses: 0, totalScore: 0, matches: 0, rockets: 0, bombs: 0, rainbows: 0, combos: 0,
       bestCascade: 0, ice: 0, choc: 0, acorns: 0, boosters: 0, dailyClaims: 0, crates: 0, defused: 0 },
     daily: { last: '', streak: 0 },
@@ -1553,6 +1673,7 @@ body.lite .tile.land .candy{animation:none}
     $('#homeAvatar').textContent = S.profile.avatar;
     $('#homeName').textContent = S.profile.name;
     $('#homeStars').textContent = totalStars();
+    refreshBadges();
   }
 
   // ---------- daily reward ----------
@@ -1563,28 +1684,90 @@ body.lite .tile.land .candy{animation:none}
   var INV_NAME = { hammer: 'Sweet Hammer', blast: 'Colour Blast', swap: 'Magic Swap', shuffle: 'Shuffle Magic', moves: 'Extra Moves' };
   var INV_ICON = { hammer: '🔨', blast: '🎨', swap: '🔄', shuffle: '🔀', moves: '➕' };
   function todayStr(off) { var d = new Date(); d.setDate(d.getDate() + (off || 0)); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
-  function dailyAvailable() { return S.daily.last !== todayStr(); }
-  function nextDayIndex() { return S.daily.last === todayStr(-1) ? S.daily.streak % 7 : 0; }
+  function dailyAvailable() { return M.dailyStatus(S.daily, new Date()).canClaim; }
+  function nextDayIndex() { return M.dailyStatus(S.daily, new Date()).dayIndex; }
   function rewardLabel(r) { var p = []; if (r.coins) p.push('🪙 ' + r.coins); if (r.inv) p.push(INV_ICON[r.inv] + ' ×' + r.n); return p.join('<br>'); }
   function dailyModal() {
-    var avail = dailyAvailable(), idx = avail ? nextDayIndex() : (S.daily.streak - 1) % 7;
+    var ds = M.dailyStatus(S.daily, new Date()), avail = ds.canClaim, idx = ds.dayIndex;
     var cells = DAILY.map(function (r, i) {
       var cls = 'day' + (i < idx || (!avail && i === idx) ? ' claimed' : '') + (avail && i === idx ? ' today' : '');
       return '<div class="' + cls + '"><b>Day ' + (i + 1) + '</b><span>' + rewardLabel(r) + '</span></div>';
     }).join('');
     showModal({ title: 'Daily Treats', body: '<p>Come back every day. Miss a day and the streak starts again.</p><div class="days">' + cells + '</div>' +
-      (avail ? '' : '<p style="font-weight:800">Already claimed today. See you tomorrow!</p>'),
-      buttons: avail ? [{ label: 'Claim', cls: 'green', fn: claimDaily }] : [{ label: 'OK', cls: 'blue' }], onClose: refreshHome });
+      (avail ? '' : '<p style="font-weight:800">Already claimed today. See you tomorrow!</p>') +
+      (ds.recoverable ? '<p class="warnNote">You missed yesterday. Keep your ' + S.daily.streak + '-day streak for 🪙 ' + ds.recoverCost + ', or start again from Day 1 for free.</p>' : ''),
+      buttons: avail ? (ds.recoverable ? [{ label: 'Keep streak (🪙 ' + ds.recoverCost + ')', cls: 'gold', disabled: S.profile.coins < ds.recoverCost, fn: function () { claimDaily(true); } }, { label: 'Start again (free)', cls: 'green', fn: function () { claimDaily(false); } }]
+        : [{ label: 'Claim', cls: 'green', fn: function () { claimDaily(false); } }]) : [{ label: 'OK', cls: 'blue' }], onClose: refreshHome });
   }
-  function claimDaily() {
-    if (!dailyAvailable()) return;
-    var idx = nextDayIndex(), r = DAILY[idx];
+  function claimDaily(recover) {
+    var ds = M.dailyStatus(S.daily, new Date());
+    if (!ds.canClaim) return;
+    var idx = ds.dayIndex;
+    if (recover && ds.recoverable && S.profile.coins >= ds.recoverCost) { S.profile.coins -= ds.recoverCost; idx = ds.recoverIndex; }
+    var r = DAILY[idx];
     S.daily.streak = idx + 1; S.daily.last = todayStr();
     if (r.coins) S.profile.coins += r.coins;
     if (r.inv) S.inv[r.inv] += r.n;
-    S.stats.dailyClaims++; save(); sfx.coin(); confetti(30);
+    S.stats.dailyClaims++; addXp(M.XP.daily); save(); sfx.coin(); confetti(30);
     toast('🎁 Day ' + (idx + 1) + ' reward: ' + rewardLabel(r).replace('<br>', ' + '));
     checkAch(); refreshHome(); updateCoins();
+  }
+
+  // ---------- XP, player level, chests, missions (rules in meta.js) ----------
+  function playerLevel() { return M.levelFromXp(S.profile.xp); }
+  function addXp(n) {
+    var before = playerLevel().level;
+    S.profile.xp += n;
+    var after = playerLevel().level;
+    for (var l = before + 1; l <= after; l++) { var ch = M.levelUpChest(l); S.meta.chests[ch]++; toast('⬆️ Player level ' + l + '! ' + M.CHESTS[ch].icon + ' ' + M.CHESTS[ch].name + ' earned'); }
+    save(); refreshBadges();
+  }
+  function curStats() { return Object.assign({}, S.stats, { stars: totalStars() }); }
+  function missions() { var m = M.ensureWeek(S.meta.missions, new Date(), curStats()); if (m !== S.meta.missions) { S.meta.missions = m; save(); } return m; }
+  function claimable() { return missions().list.filter(function (m) { return !m.claimed && M.missionProgress(m, curStats()) >= m.target; }).length; }
+  function chestCount() { var c = S.meta.chests; return c.bronze + c.silver + c.gold; }
+  function refreshBadges() {
+    var d = document.getElementById('missionDot'); if (d) d.classList.toggle('hidden', !(claimable() || chestCount()));
+    var lv = playerLevel(), b = document.getElementById('lvBadge');
+    if (b) { b.textContent = 'Lv ' + lv.level; document.getElementById('xpFill').style.width = Math.round(100 * lv.into / lv.need) + '%'; }
+  }
+  function missionsModal() {
+    var ms = missions(), st = curStats(), c = S.meta.chests;
+    var rows = ms.list.map(function (m, k) {
+      var p = M.missionProgress(m, st), done = p >= m.target;
+      return '<div class="mission' + (m.claimed ? ' claimed' : '') + '"><span class="mi">' + m.icon + '</span><div class="md"><b>' + m.text + '</b><div class="mbar"><div style="width:' + Math.round(100 * p / m.target) + '%"></div></div><small>' + p + ' / ' + m.target + ' · reward ' + M.CHESTS[m.chest].icon + '</small></div>' +
+        (m.claimed ? '<span class="ar">✔</span>' : '<button class="btn small ' + (done ? 'green' : 'blue') + '" data-k="' + k + '"' + (done ? '' : ' disabled') + '>Claim</button>') + '</div>';
+    }).join('');
+    var chests = ['bronze', 'silver', 'gold'].map(function (t) {
+      return '<button class="chestBtn" data-t="' + t + '"' + (c[t] ? '' : ' disabled') + '><span>' + M.CHESTS[t].icon + '</span><b>×' + c[t] + '</b><small>' + (c[t] ? 'Open' : M.CHESTS[t].name) + '</small></button>';
+    }).join('');
+    var lv = playerLevel();
+    showModal({ title: 'Missions',
+      body: '<p><b>Player level ' + lv.level + '</b> · ' + lv.into + ' / ' + lv.need + ' XP</p><div class="mbar big"><div style="width:' + Math.round(100 * lv.into / lv.need) + '%"></div></div>' +
+        '<p style="margin-top:12px"><b>This week</b> <small>(new missions every Monday)</small></p>' + rows +
+        '<p style="margin-top:12px"><b>Your chests</b></p><div class="row">' + chests + '</div>',
+      buttons: [{ label: 'Done', cls: 'green', fn: refreshHome }], onClose: refreshHome,
+      after: function (m) {
+        m.querySelectorAll('.mission button').forEach(function (b) { b.onclick = function () {
+          var ms2 = missions(), mi = ms2.list[+b.dataset.k];
+          if (mi.claimed || M.missionProgress(mi, curStats()) < mi.target) return;
+          mi.claimed = true; S.meta.chests[mi.chest]++; sfx.coin(); addXp(M.XP.mission); save(); missionsModal();
+        }; });
+        m.querySelectorAll('.chestBtn').forEach(function (b) { b.onclick = function () { if (S.meta.chests[b.dataset.t] > 0) openChestModal(b.dataset.t); }; });
+      } });
+  }
+  function openChestModal(t) {
+    if (S.meta.chests[t] <= 0) return;
+    S.meta.chests[t]--;
+    var r = M.openChest(t);
+    S.profile.coins += r.coins;
+    Object.keys(r.items).forEach(function (k) { S.inv[k] += r.items[k]; });
+    save(); updateCoins();
+    var items = Object.keys(r.items).map(function (k) { return '<span class="goal">' + INV_ICON[k] + ' ×' + r.items[k] + '</span>'; }).join('');
+    showModal({ title: M.CHESTS[t].name,
+      body: '<div class="chestOpen">' + M.CHESTS[t].icon + '</div><div class="chestLoot"><p class="coinLine">🪙 +' + r.coins + '</p><div class="row">' + items + '</div></div>',
+      buttons: [{ label: chestCount() ? 'Back to missions' : 'Great!', cls: 'green', fn: missionsModal }], onClose: refreshHome,
+      after: function () { sfx.win(); confetti(40); } });
   }
 
   // ---------- achievements ----------
@@ -1628,7 +1811,8 @@ body.lite .tile.land .candy{animation:none}
     $('#profAvatar').textContent = S.profile.avatar;
     $('#profName').value = S.profile.name;
     $('#avatarRow').innerHTML = AVATARS.map(function (a) { return '<button class="av' + (a === S.profile.avatar ? ' on' : '') + '" data-a="' + a + '">' + a + '</button>'; }).join('');
-    var rows = [['Levels completed', Object.keys(S.progress.stars).length + ' / ' + LEVELS.length], ['Stars', totalStars() + ' / ' + LEVELS.length * 3],
+    var plv = playerLevel();
+    var rows = [['Player level', plv.level + ' (' + plv.into + '/' + plv.need + ' XP)'], ['Levels completed', Object.keys(S.progress.stars).length + ' / ' + LEVELS.length], ['Stars', totalStars() + ' / ' + LEVELS.length * 3],
       ['Games played', played], ['Win rate', played ? Math.round(s.wins / played * 100) + '%' : '–'], ['Total score', s.totalScore.toLocaleString()],
       ['Matches made', s.matches.toLocaleString()], ['Rockets', s.rockets], ['Magic Bombs', s.bombs], ['Rainbow Orbs', s.rainbows], ['Combos fired', s.combos],
       ['Best cascade', s.bestCascade ? s.bestCascade + '×' : '–'], ['Ice melted', s.ice], ['Chocolate broken', s.choc], ['Acorns collected', s.acorns], ['Crates cracked', s.crates], ['Fizz bombs defused', s.defused], ['Boosters used', s.boosters]];
@@ -1767,7 +1951,7 @@ body.lite .tile.land .candy{animation:none}
     cur = n; var l = LEVELS[n - 1]; movesMade = 0;
     game = new E.Game(l, window.__svSeed);
     busy = false; over = false; paused = false; mode = null; selected = null; swapFirst = null;
-    levelStats = { counted: false };
+    levelStats = { counted: false, specials: 0, combos: 0 };
     show('game');
     $('#gameBg').className = 'bg ' + WORLDS.filter(function (w) { return n >= w.from && n <= w.to; })[0].cls;
     $('#lvlNum').textContent = n;
@@ -1957,8 +2141,8 @@ body.lite .tile.land .candy{animation:none}
           break;
         case 'clear': popTile(e.id, e.idx, e.color); break;
         case 'special': specialFx(e); sh = true; sp = true; break;
-        case 'combo': comboFx(e); sh = true; if (e.kind !== 'blast') st.combos++; break;
-        case 'create': born.add(e.id); sfx.create(); if (e.special === 'bomb') st.bombs++; else if (e.special === 'rainbow') st.rainbows++; else st.rockets++; break;
+        case 'combo': comboFx(e); sh = true; if (e.kind !== 'blast') { st.combos++; if (levelStats) levelStats.combos++; } break;
+        case 'create': born.add(e.id); sfx.create(); if (levelStats) levelStats.specials++; if (e.special === 'bomb') st.bombs++; else if (e.special === 'rainbow') st.rainbows++; else st.rockets++; break;
         case 'convert': born.add(e.id); break;
         case 'spawn': spawnFrom.set(e.id, e.from); break;
         case 'collect': popTile(e.id, e.idx, -1, true); sfx.collect(); st.acorns++; var c = center(e.idx); floatText(c[0], c[1], '+1000'); break;
@@ -2018,9 +2202,10 @@ body.lite .tile.land .candy{animation:none}
     if (game.isWon()) finishWin();
     else if (game.isLost()) showLose();
   }
-  function countGame(won) {
+  function countGame(won, stars, firstClear) {
     if (levelStats.counted) return; levelStats.counted = true;
     S.stats.played++; if (won) S.stats.wins++; else S.stats.losses++;
+    addXp(M.xpForGame({ won: won, stars: stars || 0, firstClear: !!firstClear, specials: levelStats.specials, combos: levelStats.combos }));
   }
   async function finishWin() {
     over = true; stopTimers(); clearHint(); mode = null; swapFirst = null; renderBoosters();
@@ -2033,13 +2218,15 @@ body.lite .tile.land .candy{animation:none}
     if (cur >= S.progress.unlocked && cur < LEVELS.length) S.progress.unlocked = cur + 1;
     var coins = 10 + stars * 10 + left * 2 + (first ? 20 : 0);
     S.profile.coins += coins; S.stats.totalScore += game.score;
-    countGame(true); save(); sfx.win(); confetti(70);
+    var xpBefore = S.profile.xp;
+    countGame(true, stars, first); save(); sfx.win(); confetti(70);
+    var xpGain = S.profile.xp - xpBefore;
     var isLast = cur === LEVELS.length, worldDone = WORLDS.filter(function (w) { return w.to === cur; })[0];
     showModal({
       title: worldDone && first ? worldDone.name + ' saved!' : 'Level ' + cur + ' complete!',
       body: '<div class="bigStars"><span>⭐</span><span>⭐</span><span>⭐</span></div><p style="font-size:28px;font-weight:900;margin:0">' + game.score.toLocaleString() + '</p>' +
         (newBest && prev ? '<p class="newBest">New best!</p>' : '') +
-        '<p class="coinLine">🪙 +<span id="coinCount">0</span>' + (first ? ' <small>(incl. first-clear bonus)</small>' : '') + '</p>' +
+        '<p class="coinLine">🪙 +<span id="coinCount">0</span>' + (first ? ' <small>(incl. first-clear bonus)</small>' : '') + ' · <span class="xpGain">+' + xpGain + ' XP</span></p>' +
         '<div class="pipCheer">🧚</div>' +
         (isLast && first ? '<p>🧚 Pip has brought every magic sweet home, and Grumble has promised to share from now on. More worlds are coming soon!</p>' : ''),
       buttons: (isLast ? [] : [{ label: 'Next level', cls: 'green', fn: function () { show('map'); renderMap(); openIntro(cur + 1); } }])
@@ -2231,7 +2418,7 @@ body.lite .tile.land .candy{animation:none}
       body: slider('sfxVol', '🔊 Sound') + slider('musicVol', '🎵 Music') + toggle('haptics', '📳 Vibration') + toggle('reduced', '🐢 Reduced motion') + toggle('autoHint', '💡 Auto hints after 6 s') +
         '<div class="setRow">⚡ Lite graphics<button class="toggle' + (liteOn() ? ' on' : '') + '" data-k="lite" aria-label="Lite graphics"></button></div>' +
         (persistent ? '' : '<p class="warnNote">Your browser is blocking storage here, so progress lasts only for this session.</p>') +
-        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.6 · 15 Nov 2026</p>',
+        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.6 · 15 Nov 2026 (phase 3)</p>',
       buttons: [{ label: 'Done', cls: 'green', fn: onBack }, { label: 'Reset progress', cls: '', fn: function () {
         confirmModal('Reset progress?', 'Do you want to delete all your stars, coins, boosters, stats and achievements? This can’t be undone.', 'Yes, delete everything', function () {
           Object.keys(DEF).forEach(function (k) { S[k] = JSON.parse(JSON.stringify(DEF[k])); }); save(); applyReduced(); applyVolumes(); show('home'); refreshHome(); toast('Progress reset');
@@ -2289,6 +2476,7 @@ body.lite .tile.land .candy{animation:none}
     applyReduced(); decorHome(); bindInput(); bindBoosters(); bootSplash();
     $('#playBtn').onclick = function () { sfx.click(); show('map'); renderMap(); };
     $('#dailyBtn').onclick = function () { sfx.click(); dailyModal(); };
+    $('#missionsBtn').onclick = function () { sfx.click(); missionsModal(); };
     $('#shopBtn').onclick = function () { sfx.click(); $('#shopBack').dataset.to = 'home'; show('shop'); renderShop(); };
     $('#profileBtn').onclick = function () { sfx.click(); show('profile'); renderProfile(); };
     $('#homeSettings').onclick = function () { sfx.click(); settingsModal(); };
@@ -2304,7 +2492,7 @@ body.lite .tile.land .candy{animation:none}
     var rt = 0;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (game && current === 'game' && !busy) layoutBoard(); }, 120); });
     document.addEventListener('visibilitychange', function () { if (document.hidden && game && !over && current === 'game' && !modalOpen()) pauseModal(); });
-    window.__sv = { get voices() { return voices; }, saveNow: function () { save(); }, get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
+    window.__sv = { M: M, missionsModal: missionsModal, addXp: addXp, get voices() { return voices; }, saveNow: function () { save(); }, get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
   });
 })();
 </script>

@@ -37,7 +37,7 @@
  {
   "test": "Valid swap (mouse drag)",
   "result": "PASS",
-  "note": "moves 15->14 score 0->12240"
+  "note": "moves 15->14 score 0->180"
  },
  {
   "test": "Board refilled, stable after cascades",
@@ -82,7 +82,7 @@
  {
   "test": "Magic Swap booster (no move used)",
   "result": "PASS",
-  "note": "tiles [461, 383]->[383, 88]"
+  "note": "tiles [372, 283]->[283, 372]"
  },
  {
   "test": "Shuffle booster",
@@ -206,6 +206,41 @@
  },
  {
   "test": "Player is told the save was restored",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Home shows player level badge",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "XP levels up the player and awards chests",
+  "result": "PASS",
+  "note": "level 1->4, chests {'bronze': 3, 'silver': 0, 'gold': 0}"
+ },
+ {
+  "test": "Missions screen lists 3 weekly missions",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Completed mission can be claimed for a chest",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Opening a chest gives coins and boosters",
+  "result": "PASS",
+  "note": ""
+ },
+ {
+  "test": "Missed one day: streak kept for 50 coins, day-5 reward given",
+  "result": "PASS",
+  "note": "streak 5, day-5 toast True"
+ },
+ {
+  "test": "Victory screen shows XP gained",
   "result": "PASS",
   "note": ""
  },

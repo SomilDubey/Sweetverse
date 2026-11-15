@@ -259,6 +259,48 @@ test('gravity v0.6: a sealed area (inside a chocolate wall) never stalls with em
   const inside = g.idx(4, 4); g.cells[inside].tile = null; g.cells[g.idx(4, 3)].tile = null; g.collapse();
   assert.ok(g.cells[inside].tile && g.cells[g.idx(4, 3)].tile);
 });
+// ---------- meta progression (2026-11-15 v0.6 phase 3) ----------
+const M = require('./meta.js');
+test('meta: XP levels follow the curve and carry over correctly', () => {
+  assert.deepStrictEqual(M.levelFromXp(0), { level: 1, into: 0, need: 80 });
+  assert.deepStrictEqual(M.levelFromXp(80), { level: 2, into: 0, need: 120 });
+  assert.deepStrictEqual(M.levelFromXp(250), { level: 3, into: 50, need: 160 });
+  assert.strictEqual(M.xpForGame({ won: true, stars: 3, firstClear: true, specials: 4, combos: 1 }), 20 + 30 + 15 + 4 + 3);
+  assert.strictEqual(M.xpForGame({ won: false }), 5);
+  assert.strictEqual(M.levelUpChest(10), 'gold'); assert.strictEqual(M.levelUpChest(5), 'silver'); assert.strictEqual(M.levelUpChest(7), 'bronze');
+});
+test('meta: weekly missions are 3 distinct, stable within a week, change between weeks', () => {
+  const st = { rockets: 10, wins: 3 };
+  const mon = new Date(2026, 10, 16), sun = new Date(2026, 10, 22), next = new Date(2026, 10, 23);
+  assert.strictEqual(M.weekId(mon), M.weekId(sun)); assert.notStrictEqual(M.weekId(sun), M.weekId(next));
+  const a = M.weeklyMissions(M.weekId(mon), st), b = M.weeklyMissions(M.weekId(sun), st);
+  assert.strictEqual(new Set(a.list.map(m => m.id)).size, 3);
+  assert.deepStrictEqual(a.list.map(m => m.id), b.list.map(m => m.id));
+  let differs = false; for (let w = 1; w < 6; w++) { const d = new Date(2026, 10, 16 + 7 * w); if (M.weeklyMissions(M.weekId(d), st).list.map(m => m.id).join() !== a.list.map(m => m.id).join()) differs = true; }
+  assert.ok(differs, 'missions never change between weeks');
+  assert.strictEqual(M.ensureWeek(a, sun, st), a); assert.notStrictEqual(M.ensureWeek(a, next, st), a);
+});
+test('meta: mission progress counts only what happened since the week started', () => {
+  const ms = M.weeklyMissions('2026-11-16', { rockets: 10, bombs: 5, rainbows: 1, combos: 2, wins: 3, stars: 9, ice: 0, choc: 0, crates: 0, acorns: 0, defused: 0, matches: 50 });
+  const m = ms.list[0], later = {}; later[m.stat] = m.base + 7;
+  assert.strictEqual(M.missionProgress(m, later), Math.min(7, m.target));
+  later[m.stat] = m.base + 9999; assert.strictEqual(M.missionProgress(m, later), m.target);
+});
+test('meta: chest rewards stay inside their ranges', () => {
+  for (let s = 0; s < 200; s++) for (const t of ['bronze', 'silver', 'gold']) {
+    const r = M.openChest(t, s), c = M.CHESTS[t];
+    assert.ok(r.coins >= c.coins[0] && r.coins <= c.coins[1], t + ' coins ' + r.coins);
+    assert.strictEqual(Object.values(r.items).reduce((a, b) => a + b, 0), c.items);
+  }
+});
+test('meta: daily streak continues, can be recovered after missing exactly one day, resets after two', () => {
+  const now = new Date(2026, 10, 15);
+  assert.deepStrictEqual(M.dailyStatus({ last: '2026-11-14', streak: 3 }, now), { canClaim: true, dayIndex: 3, recoverable: false });
+  assert.strictEqual(M.dailyStatus({ last: '2026-11-15', streak: 3 }, now).canClaim, false);
+  const rec = M.dailyStatus({ last: '2026-11-13', streak: 3 }, now);
+  assert.ok(rec.recoverable && rec.recoverIndex === 3 && rec.dayIndex === 0);
+  assert.strictEqual(M.dailyStatus({ last: '2026-11-12', streak: 3 }, now).recoverable, false);
+});
 test('fuzz: 300 random games keep invariants (stable board, no gaps, a move always exists)', () => {
   for (let s = 1; s <= 300; s++) {
     const l = LEVELS[s % LEVELS.length]; const g = new E.Game(l, s * 31);

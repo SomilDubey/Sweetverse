@@ -13,10 +13,12 @@
  * 2026-11-15 v0.6 visuals: landing squash, press feedback, match impact flash, star trail
  *                 to the star bar, richer candy material, Pip on win/lose screens, failure
  *                 explanation on the defeat screen. Previous: archive/ui.v05.js
+ * 2026-11-15 v0.6 phase 3: player XP/level (meta.js), weekly missions, treasure chests,
+ *                 daily streak recovery, Missions screen. Previous: archive/ui.v06p2.js
  */
 (function () {
   'use strict';
-  var E = window.SweetEngine, LEVELS = window.SWEET_LEVELS, WORLDS = window.SWEET_WORLDS;
+  var M = window.SweetMeta, E = window.SweetEngine, LEVELS = window.SWEET_LEVELS, WORLDS = window.SWEET_WORLDS;
   var $ = function (s) { return document.querySelector(s); };
   var COLORS = ['#ff4d6d', '#ff9f1c', '#ffd60a', '#2ed58a', '#3a86ff', '#b15cff'];
   var COLOR_NAMES = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
@@ -29,7 +31,8 @@
     progress: { unlocked: 1, stars: {}, best: {} },
     inv: { hammer: 3, blast: 1, swap: 2, shuffle: 2, moves: 2 },
     settings: { sfxVol: 0.8, musicVol: 0.4, haptics: true, reduced: prefersReduced, lite: null, autoHint: true },
-    profile: { name: 'Sweet Player', avatar: '🧁', coins: 100 },
+    profile: { name: 'Sweet Player', avatar: '🧁', coins: 100, xp: 0 },
+    meta: { missions: null, chests: { bronze: 0, silver: 0, gold: 0 } },
     stats: { played: 0, wins: 0, losses: 0, totalScore: 0, matches: 0, rockets: 0, bombs: 0, rainbows: 0, combos: 0,
       bestCascade: 0, ice: 0, choc: 0, acorns: 0, boosters: 0, dailyClaims: 0, crates: 0, defused: 0 },
     daily: { last: '', streak: 0 },
@@ -237,6 +240,7 @@
     $('#homeAvatar').textContent = S.profile.avatar;
     $('#homeName').textContent = S.profile.name;
     $('#homeStars').textContent = totalStars();
+    refreshBadges();
   }
 
   // ---------- daily reward ----------
@@ -247,28 +251,90 @@
   var INV_NAME = { hammer: 'Sweet Hammer', blast: 'Colour Blast', swap: 'Magic Swap', shuffle: 'Shuffle Magic', moves: 'Extra Moves' };
   var INV_ICON = { hammer: '🔨', blast: '🎨', swap: '🔄', shuffle: '🔀', moves: '➕' };
   function todayStr(off) { var d = new Date(); d.setDate(d.getDate() + (off || 0)); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
-  function dailyAvailable() { return S.daily.last !== todayStr(); }
-  function nextDayIndex() { return S.daily.last === todayStr(-1) ? S.daily.streak % 7 : 0; }
+  function dailyAvailable() { return M.dailyStatus(S.daily, new Date()).canClaim; }
+  function nextDayIndex() { return M.dailyStatus(S.daily, new Date()).dayIndex; }
   function rewardLabel(r) { var p = []; if (r.coins) p.push('🪙 ' + r.coins); if (r.inv) p.push(INV_ICON[r.inv] + ' ×' + r.n); return p.join('<br>'); }
   function dailyModal() {
-    var avail = dailyAvailable(), idx = avail ? nextDayIndex() : (S.daily.streak - 1) % 7;
+    var ds = M.dailyStatus(S.daily, new Date()), avail = ds.canClaim, idx = ds.dayIndex;
     var cells = DAILY.map(function (r, i) {
       var cls = 'day' + (i < idx || (!avail && i === idx) ? ' claimed' : '') + (avail && i === idx ? ' today' : '');
       return '<div class="' + cls + '"><b>Day ' + (i + 1) + '</b><span>' + rewardLabel(r) + '</span></div>';
     }).join('');
     showModal({ title: 'Daily Treats', body: '<p>Come back every day. Miss a day and the streak starts again.</p><div class="days">' + cells + '</div>' +
-      (avail ? '' : '<p style="font-weight:800">Already claimed today. See you tomorrow!</p>'),
-      buttons: avail ? [{ label: 'Claim', cls: 'green', fn: claimDaily }] : [{ label: 'OK', cls: 'blue' }], onClose: refreshHome });
+      (avail ? '' : '<p style="font-weight:800">Already claimed today. See you tomorrow!</p>') +
+      (ds.recoverable ? '<p class="warnNote">You missed yesterday. Keep your ' + S.daily.streak + '-day streak for 🪙 ' + ds.recoverCost + ', or start again from Day 1 for free.</p>' : ''),
+      buttons: avail ? (ds.recoverable ? [{ label: 'Keep streak (🪙 ' + ds.recoverCost + ')', cls: 'gold', disabled: S.profile.coins < ds.recoverCost, fn: function () { claimDaily(true); } }, { label: 'Start again (free)', cls: 'green', fn: function () { claimDaily(false); } }]
+        : [{ label: 'Claim', cls: 'green', fn: function () { claimDaily(false); } }]) : [{ label: 'OK', cls: 'blue' }], onClose: refreshHome });
   }
-  function claimDaily() {
-    if (!dailyAvailable()) return;
-    var idx = nextDayIndex(), r = DAILY[idx];
+  function claimDaily(recover) {
+    var ds = M.dailyStatus(S.daily, new Date());
+    if (!ds.canClaim) return;
+    var idx = ds.dayIndex;
+    if (recover && ds.recoverable && S.profile.coins >= ds.recoverCost) { S.profile.coins -= ds.recoverCost; idx = ds.recoverIndex; }
+    var r = DAILY[idx];
     S.daily.streak = idx + 1; S.daily.last = todayStr();
     if (r.coins) S.profile.coins += r.coins;
     if (r.inv) S.inv[r.inv] += r.n;
-    S.stats.dailyClaims++; save(); sfx.coin(); confetti(30);
+    S.stats.dailyClaims++; addXp(M.XP.daily); save(); sfx.coin(); confetti(30);
     toast('🎁 Day ' + (idx + 1) + ' reward: ' + rewardLabel(r).replace('<br>', ' + '));
     checkAch(); refreshHome(); updateCoins();
+  }
+
+  // ---------- XP, player level, chests, missions (rules in meta.js) ----------
+  function playerLevel() { return M.levelFromXp(S.profile.xp); }
+  function addXp(n) {
+    var before = playerLevel().level;
+    S.profile.xp += n;
+    var after = playerLevel().level;
+    for (var l = before + 1; l <= after; l++) { var ch = M.levelUpChest(l); S.meta.chests[ch]++; toast('⬆️ Player level ' + l + '! ' + M.CHESTS[ch].icon + ' ' + M.CHESTS[ch].name + ' earned'); }
+    save(); refreshBadges();
+  }
+  function curStats() { return Object.assign({}, S.stats, { stars: totalStars() }); }
+  function missions() { var m = M.ensureWeek(S.meta.missions, new Date(), curStats()); if (m !== S.meta.missions) { S.meta.missions = m; save(); } return m; }
+  function claimable() { return missions().list.filter(function (m) { return !m.claimed && M.missionProgress(m, curStats()) >= m.target; }).length; }
+  function chestCount() { var c = S.meta.chests; return c.bronze + c.silver + c.gold; }
+  function refreshBadges() {
+    var d = document.getElementById('missionDot'); if (d) d.classList.toggle('hidden', !(claimable() || chestCount()));
+    var lv = playerLevel(), b = document.getElementById('lvBadge');
+    if (b) { b.textContent = 'Lv ' + lv.level; document.getElementById('xpFill').style.width = Math.round(100 * lv.into / lv.need) + '%'; }
+  }
+  function missionsModal() {
+    var ms = missions(), st = curStats(), c = S.meta.chests;
+    var rows = ms.list.map(function (m, k) {
+      var p = M.missionProgress(m, st), done = p >= m.target;
+      return '<div class="mission' + (m.claimed ? ' claimed' : '') + '"><span class="mi">' + m.icon + '</span><div class="md"><b>' + m.text + '</b><div class="mbar"><div style="width:' + Math.round(100 * p / m.target) + '%"></div></div><small>' + p + ' / ' + m.target + ' · reward ' + M.CHESTS[m.chest].icon + '</small></div>' +
+        (m.claimed ? '<span class="ar">✔</span>' : '<button class="btn small ' + (done ? 'green' : 'blue') + '" data-k="' + k + '"' + (done ? '' : ' disabled') + '>Claim</button>') + '</div>';
+    }).join('');
+    var chests = ['bronze', 'silver', 'gold'].map(function (t) {
+      return '<button class="chestBtn" data-t="' + t + '"' + (c[t] ? '' : ' disabled') + '><span>' + M.CHESTS[t].icon + '</span><b>×' + c[t] + '</b><small>' + (c[t] ? 'Open' : M.CHESTS[t].name) + '</small></button>';
+    }).join('');
+    var lv = playerLevel();
+    showModal({ title: 'Missions',
+      body: '<p><b>Player level ' + lv.level + '</b> · ' + lv.into + ' / ' + lv.need + ' XP</p><div class="mbar big"><div style="width:' + Math.round(100 * lv.into / lv.need) + '%"></div></div>' +
+        '<p style="margin-top:12px"><b>This week</b> <small>(new missions every Monday)</small></p>' + rows +
+        '<p style="margin-top:12px"><b>Your chests</b></p><div class="row">' + chests + '</div>',
+      buttons: [{ label: 'Done', cls: 'green', fn: refreshHome }], onClose: refreshHome,
+      after: function (m) {
+        m.querySelectorAll('.mission button').forEach(function (b) { b.onclick = function () {
+          var ms2 = missions(), mi = ms2.list[+b.dataset.k];
+          if (mi.claimed || M.missionProgress(mi, curStats()) < mi.target) return;
+          mi.claimed = true; S.meta.chests[mi.chest]++; sfx.coin(); addXp(M.XP.mission); save(); missionsModal();
+        }; });
+        m.querySelectorAll('.chestBtn').forEach(function (b) { b.onclick = function () { if (S.meta.chests[b.dataset.t] > 0) openChestModal(b.dataset.t); }; });
+      } });
+  }
+  function openChestModal(t) {
+    if (S.meta.chests[t] <= 0) return;
+    S.meta.chests[t]--;
+    var r = M.openChest(t);
+    S.profile.coins += r.coins;
+    Object.keys(r.items).forEach(function (k) { S.inv[k] += r.items[k]; });
+    save(); updateCoins();
+    var items = Object.keys(r.items).map(function (k) { return '<span class="goal">' + INV_ICON[k] + ' ×' + r.items[k] + '</span>'; }).join('');
+    showModal({ title: M.CHESTS[t].name,
+      body: '<div class="chestOpen">' + M.CHESTS[t].icon + '</div><div class="chestLoot"><p class="coinLine">🪙 +' + r.coins + '</p><div class="row">' + items + '</div></div>',
+      buttons: [{ label: chestCount() ? 'Back to missions' : 'Great!', cls: 'green', fn: missionsModal }], onClose: refreshHome,
+      after: function () { sfx.win(); confetti(40); } });
   }
 
   // ---------- achievements ----------
@@ -312,7 +378,8 @@
     $('#profAvatar').textContent = S.profile.avatar;
     $('#profName').value = S.profile.name;
     $('#avatarRow').innerHTML = AVATARS.map(function (a) { return '<button class="av' + (a === S.profile.avatar ? ' on' : '') + '" data-a="' + a + '">' + a + '</button>'; }).join('');
-    var rows = [['Levels completed', Object.keys(S.progress.stars).length + ' / ' + LEVELS.length], ['Stars', totalStars() + ' / ' + LEVELS.length * 3],
+    var plv = playerLevel();
+    var rows = [['Player level', plv.level + ' (' + plv.into + '/' + plv.need + ' XP)'], ['Levels completed', Object.keys(S.progress.stars).length + ' / ' + LEVELS.length], ['Stars', totalStars() + ' / ' + LEVELS.length * 3],
       ['Games played', played], ['Win rate', played ? Math.round(s.wins / played * 100) + '%' : '–'], ['Total score', s.totalScore.toLocaleString()],
       ['Matches made', s.matches.toLocaleString()], ['Rockets', s.rockets], ['Magic Bombs', s.bombs], ['Rainbow Orbs', s.rainbows], ['Combos fired', s.combos],
       ['Best cascade', s.bestCascade ? s.bestCascade + '×' : '–'], ['Ice melted', s.ice], ['Chocolate broken', s.choc], ['Acorns collected', s.acorns], ['Crates cracked', s.crates], ['Fizz bombs defused', s.defused], ['Boosters used', s.boosters]];
@@ -451,7 +518,7 @@
     cur = n; var l = LEVELS[n - 1]; movesMade = 0;
     game = new E.Game(l, window.__svSeed);
     busy = false; over = false; paused = false; mode = null; selected = null; swapFirst = null;
-    levelStats = { counted: false };
+    levelStats = { counted: false, specials: 0, combos: 0 };
     show('game');
     $('#gameBg').className = 'bg ' + WORLDS.filter(function (w) { return n >= w.from && n <= w.to; })[0].cls;
     $('#lvlNum').textContent = n;
@@ -641,8 +708,8 @@
           break;
         case 'clear': popTile(e.id, e.idx, e.color); break;
         case 'special': specialFx(e); sh = true; sp = true; break;
-        case 'combo': comboFx(e); sh = true; if (e.kind !== 'blast') st.combos++; break;
-        case 'create': born.add(e.id); sfx.create(); if (e.special === 'bomb') st.bombs++; else if (e.special === 'rainbow') st.rainbows++; else st.rockets++; break;
+        case 'combo': comboFx(e); sh = true; if (e.kind !== 'blast') { st.combos++; if (levelStats) levelStats.combos++; } break;
+        case 'create': born.add(e.id); sfx.create(); if (levelStats) levelStats.specials++; if (e.special === 'bomb') st.bombs++; else if (e.special === 'rainbow') st.rainbows++; else st.rockets++; break;
         case 'convert': born.add(e.id); break;
         case 'spawn': spawnFrom.set(e.id, e.from); break;
         case 'collect': popTile(e.id, e.idx, -1, true); sfx.collect(); st.acorns++; var c = center(e.idx); floatText(c[0], c[1], '+1000'); break;
@@ -702,9 +769,10 @@
     if (game.isWon()) finishWin();
     else if (game.isLost()) showLose();
   }
-  function countGame(won) {
+  function countGame(won, stars, firstClear) {
     if (levelStats.counted) return; levelStats.counted = true;
     S.stats.played++; if (won) S.stats.wins++; else S.stats.losses++;
+    addXp(M.xpForGame({ won: won, stars: stars || 0, firstClear: !!firstClear, specials: levelStats.specials, combos: levelStats.combos }));
   }
   async function finishWin() {
     over = true; stopTimers(); clearHint(); mode = null; swapFirst = null; renderBoosters();
@@ -717,13 +785,15 @@
     if (cur >= S.progress.unlocked && cur < LEVELS.length) S.progress.unlocked = cur + 1;
     var coins = 10 + stars * 10 + left * 2 + (first ? 20 : 0);
     S.profile.coins += coins; S.stats.totalScore += game.score;
-    countGame(true); save(); sfx.win(); confetti(70);
+    var xpBefore = S.profile.xp;
+    countGame(true, stars, first); save(); sfx.win(); confetti(70);
+    var xpGain = S.profile.xp - xpBefore;
     var isLast = cur === LEVELS.length, worldDone = WORLDS.filter(function (w) { return w.to === cur; })[0];
     showModal({
       title: worldDone && first ? worldDone.name + ' saved!' : 'Level ' + cur + ' complete!',
       body: '<div class="bigStars"><span>⭐</span><span>⭐</span><span>⭐</span></div><p style="font-size:28px;font-weight:900;margin:0">' + game.score.toLocaleString() + '</p>' +
         (newBest && prev ? '<p class="newBest">New best!</p>' : '') +
-        '<p class="coinLine">🪙 +<span id="coinCount">0</span>' + (first ? ' <small>(incl. first-clear bonus)</small>' : '') + '</p>' +
+        '<p class="coinLine">🪙 +<span id="coinCount">0</span>' + (first ? ' <small>(incl. first-clear bonus)</small>' : '') + ' · <span class="xpGain">+' + xpGain + ' XP</span></p>' +
         '<div class="pipCheer">🧚</div>' +
         (isLast && first ? '<p>🧚 Pip has brought every magic sweet home, and Grumble has promised to share from now on. More worlds are coming soon!</p>' : ''),
       buttons: (isLast ? [] : [{ label: 'Next level', cls: 'green', fn: function () { show('map'); renderMap(); openIntro(cur + 1); } }])
@@ -915,7 +985,7 @@
       body: slider('sfxVol', '🔊 Sound') + slider('musicVol', '🎵 Music') + toggle('haptics', '📳 Vibration') + toggle('reduced', '🐢 Reduced motion') + toggle('autoHint', '💡 Auto hints after 6 s') +
         '<div class="setRow">⚡ Lite graphics<button class="toggle' + (liteOn() ? ' on' : '') + '" data-k="lite" aria-label="Lite graphics"></button></div>' +
         (persistent ? '' : '<p class="warnNote">Your browser is blocking storage here, so progress lasts only for this session.</p>') +
-        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.6 · 15 Nov 2026</p>',
+        '<p style="font-size:12px;opacity:.7;margin-top:10px">Sweetverse prototype v0.6 · 15 Nov 2026 (phase 3)</p>',
       buttons: [{ label: 'Done', cls: 'green', fn: onBack }, { label: 'Reset progress', cls: '', fn: function () {
         confirmModal('Reset progress?', 'Do you want to delete all your stars, coins, boosters, stats and achievements? This can’t be undone.', 'Yes, delete everything', function () {
           Object.keys(DEF).forEach(function (k) { S[k] = JSON.parse(JSON.stringify(DEF[k])); }); save(); applyReduced(); applyVolumes(); show('home'); refreshHome(); toast('Progress reset');
@@ -973,6 +1043,7 @@
     applyReduced(); decorHome(); bindInput(); bindBoosters(); bootSplash();
     $('#playBtn').onclick = function () { sfx.click(); show('map'); renderMap(); };
     $('#dailyBtn').onclick = function () { sfx.click(); dailyModal(); };
+    $('#missionsBtn').onclick = function () { sfx.click(); missionsModal(); };
     $('#shopBtn').onclick = function () { sfx.click(); $('#shopBack').dataset.to = 'home'; show('shop'); renderShop(); };
     $('#profileBtn').onclick = function () { sfx.click(); show('profile'); renderProfile(); };
     $('#homeSettings').onclick = function () { sfx.click(); settingsModal(); };
@@ -988,6 +1059,6 @@
     var rt = 0;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (game && current === 'game' && !busy) layoutBoard(); }, 120); });
     document.addEventListener('visibilitychange', function () { if (document.hidden && game && !over && current === 'game' && !modalOpen()) pauseModal(); });
-    window.__sv = { get voices() { return voices; }, saveNow: function () { save(); }, get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
+    window.__sv = { M: M, missionsModal: missionsModal, addXp: addXp, get voices() { return voices; }, saveNow: function () { save(); }, get game() { return game; }, startLevel: startLevel, doSwap: doSwap, get busy() { return busy; }, S: S, show: show, claimDaily: claimDaily, get parts() { return parts.length; }, get mode() { return mode; } };
   });
 })();

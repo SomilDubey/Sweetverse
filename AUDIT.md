@@ -56,12 +56,20 @@ No network calls, no keys, no tracking. The player name is only ever inserted as
 
 ---
 
+## Feature tracker (updated 2026-11-15, after v0.6 phase 3)
+| Status | Features |
+|---|---|
+| ✅ Done and tested | Everything in §2, plus: gravity rework (v0.6 p1), landing/press/impact/star-trail effects, failure explanation (v0.6 p2), player XP and levels, weekly missions, treasure chests, streak recovery (v0.6 p3) |
+| ⚠️ Done, not tested on real hardware | Touch on a physical phone, performance on a low-end Android phone |
+| ⏳ Pending | Companions · Magic Garden · multi-stage boards · moving tiles · treasure hunt · path choice · 6 new combos · daily puzzle challenge · cosmetics · worlds 7–10 / levels 61–300 · world ambience audio |
+| 🚫 Needs a backend (not faked) | Friend/global leaderboards, community milestones, seasonal online events, challenge sharing between players |
+
 ## Roadmap for the rest of the brief (recommended order)
 | Step | Content | Why this order | Size |
 |---|---|---|---|
-| **v0.6** | Gravity rework (B5) + multi-stage boards + moving tiles (conveyor) | Everything "environmental" depends on correct gravity | Large |
-| **v0.7** | Meta layer: XP/player level, daily challenge, weekly missions, treasure chests, streak with recovery | Gives players a reason to return; mostly UI and data | Medium |
-| **v0.8** | Companions (4, balanced, tested by bot) + Magic Garden (spend seeds) | Needs v0.7's reward economy to plug into | Large |
+| **v0.6** | ✅ Gravity rework, visuals, XP/missions/chests/streak. *Moved to v0.7:* multi-stage boards, moving tiles | | Done |
+| **v0.7** | Companions (4, balanced, bot-tested) + multi-stage boards + daily puzzle challenge | Companions plug into the new XP/chest economy | Large |
+| **v0.8** | Magic Garden (seeds from missions/chests) + moving tiles | | Large |
 | **v0.9** | The 6 new combos (Rainbow Rocket, Magic Galaxy, Sweet Storm, Golden Comet, Crystal Heart, Ultimate Fusion) | Engine work; easier after the gravity rework | Medium |
 | **v1.0+** | Worlds 7–10 in batches of 30 levels, each bot-validated; ambience per world | Content is cheapest to add once the mechanics are final | Large, repeatable |
 | Later | Leaderboards, friends, events | Need a backend (e.g. Firebase). Local personal bests only until then | — |

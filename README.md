@@ -1,11 +1,12 @@
 # SWEETVERSE – Match & Magic (playable prototype)
 
-**Version:** v0.6 · **Date:** 2026-11-15
+**Version:** v0.6 (phases 1–3) · **Date:** 2026-11-15
 
 An original match-3 puzzle game that runs in any modern browser, on phone, tablet or desktop.
 It is one self-contained HTML file with no external assets, APIs or paid services.
 
 ## Changelog
+- **2026-11-15 v0.6 (phase 3: progression)** New `meta.js` (pure logic, unit-tested): **player XP and levels** (XP from wins, stars, first clears, specials, combos, daily claims; a chest on every level-up: gold every 10 levels, silver every 5). **Weekly missions** (3 per week from a pool of 12, the same for every player that week, progress counted only from the start of the week; each pays a chest). **Treasure chests** (bronze, silver, gold: coins plus boosters). **Daily streak recovery** (miss exactly one day and keep the streak for 🪙50, or restart for free). New Missions & Chests screen, level badge and XP bar on the home screen, XP shown on the victory screen and in the profile. Saves from older versions get the new fields automatically.
 - **2026-11-15 v0.6 (phase 2: visuals & feel)** Sweets squash when they land; sweets shrink slightly when pressed; a coloured impact flash on each match; a star flies to the star bar when you earn it; richer candy shine; Pip cheers on the win screen; the defeat screen explains what was missing, with one concrete tip. All new effects are off in reduced-motion and lite mode. Performance re-measured: no regression on level 1, where gravity is unchanged. Previous: `archive/ui.v05.js`, `archive/style.v05.css`.
 - **2026-11-15 v0.6 (phase 1: gameplay)** Gravity rework. Chocolate, crates and locked sweets now act as shelves (sweets above them stay put), locked sweets never move, cells under blockers fill by diagonal slides, holes are still passed through, and sealed areas get fresh sweets so the board never stalls. Level 27 re-tuned (+3 moves). Difficulty labels re-measured. Previous: `archive/engine.v05.js`, `archive/levels.v05.js`.
 - **2026-11-15 v0.5** Full project audit (`AUDIT.md`). Save system v2: one versioned save with a backup copy, migration from v0.1–v0.4, and recovery from corrupted data (old keys and damaged data are kept, never deleted). **Smart hint**: simulates every candidate move against the level's goals. In 216 bot games, following it wins 83% vs 4% for the old first-found hint. New 💡 hint button and an "Auto hints" setting. Audio capped at 14 simultaneous sounds with per-effect rate limiting. Previous files in `archive/` (`*.v04.*`).
@@ -23,6 +24,7 @@ Earlier versions of changed files are kept in `archive/`.
 | File | What it is |
 |---|---|
 | `sweetverse.html` | **The game.** Built output: one file, open it in a browser. |
+| `meta.js` | Progression rules: XP and levels, weekly missions, chests, daily streak. Pure logic, no DOM. |
 | `engine.js` | Game-state engine. Pure logic, no DOM: board, matching, specials, combos, gravity, obstacles, goals, boosters. Runs in Node too. |
 | `levels.js` | All level data plus world definitions. Add levels here. |
 | `ui.js` | Rendering, input, screens, audio, rewards, storage. |
@@ -124,10 +126,10 @@ v0.4 is now as fast as having every effect switched off. A CPU profile shows gam
 
 ## 4. Testing report (actual results, 2026-11-14)
 
-### 4a. Engine unit tests: `node test.js` → **34 passed, 0 failed** (2026-11-15, v0.5)
+### 4a. Engine and meta unit tests: `node test.js` → **44 passed, 0 failed** (2026-11-15, v0.6)
 Covers: no matches and at least one move on every new board (30 levels × 20 seeds); horizontal/vertical matches; invalid swap rejected with no move used; 4-match → Rocket; 5-match → Rainbow Orb; L-shape → Magic Bomb; Rocket clears its row; Rainbow + candy clears that colour; Bomb + Bomb = Star Crusher (5×5); Rocket + Rocket clears row and column; gravity and refill leave no gaps; single and double ice; locks; acorns collected at the bottom and immune to blasts; shuffle always produces a playable board; hammer; extra moves (and +15 s on timed levels); cascade multiplier; chocolate (blocking, adjacent damage, two layers, spreading or not spreading); make-special and combo goals; Colour Blast; Magic Swap; hammer on chocolate; **v0.5:** smart hint picks the goal-serving move, hint speed < 60 ms on 9×9; **v0.4:** crates (3 layers, no spreading), fizz bombs (placement, countdown, explosion = loss, defuse goal), Sugar Rush finale, start boosters. Plus a **fuzz test: 300 random games across all levels**, checking after every move that the board is stable, has no gaps and always has a valid move.
 
-### 4b. Browser tests: `python3 smoke.py` → **43 / 43 PASS** (2026-11-15, v0.5)
+### 4b. Browser tests: `python3 smoke.py` → **50 / 50 PASS** (2026-11-15, v0.6)
 Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) and 1440×900 (desktop). Mouse drags, CDP **touch** swipes and taps.
 
 | Test | Result | Note |
@@ -139,7 +141,7 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Profile: rename + avatar | PASS |  |
 | Locked level cannot be opened | PASS |  |
 | Tutorial hand shows the first move on level 1 | PASS |  |
-| Valid swap (mouse drag) | PASS | moves 15->14 score 0->540 |
+| Valid swap (mouse drag) | PASS | moves 15->14 score 0->180 |
 | Board refilled, stable after cascades | PASS | matches left 0, empty 0, tiles 64 |
 | Valid swap (touch swipe) | PASS | moves 14->13 |
 | Invalid swap rejected, no move used | PASS |  |
@@ -148,7 +150,7 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Special + special combo fires (Mega Blast XL) | PASS |  |
 | Hammer booster | PASS |  |
 | Colour Blast booster | PASS |  |
-| Magic Swap booster (no move used) | PASS | tiles [321, 254]->[254, 321] |
+| Magic Swap booster (no move used) | PASS | tiles [372, 283]->[283, 372] |
 | Shuffle booster | PASS |  |
 | Extra Moves booster | PASS |  |
 | Booster mode can be cancelled | PASS |  |
@@ -161,19 +163,26 @@ Real Chrome at 390×844 (phone), then 844×390 (landscape), 820×1180 (tablet) a
 | Retry after failure | PASS |  |
 | Candy crates render (level 31) | PASS |  |
 | Fizz bomb counters render (level 42) | PASS |  |
-| Fizz bomb reaching 0 loses the level | PASS | ✕ A fizz bomb popped!  So close! Still t |
+| Fizz bomb reaching 0 loses the level | PASS | ✕ A fizz bomb popped! 🧚  So close! Still |
 | Start booster: Rocket placed and 30 coins spent | PASS |  |
 | Map shows 6 worlds and 60 levels | PASS |  |
 | Chocolate visible on level 20 | PASS |  |
 | Particle pool empties when idle (no growth) | PASS |  |
 | Landscape layout fits screen | PASS |  |
 | No page scroll during gameplay | PASS |  |
-| Save and restore after reload (localStorage) | PASS | [60,{"1":3},"Somil",358] |
+| Save and restore after reload (localStorage) | PASS | [60,{"1":3},"Somil",438] |
 | Hint button highlights the smart move | PASS |  |
 | Audio: never more than 14 sounds at once in a big combo | PASS | max simultaneous 8 |
 | Save migration: v0.4 progress, coins and boosters kept; new boosters get defaults; old keys kept | PASS | [7, 'OldSave', 999, 9, 2, True, True] |
 | Corrupted save: restored from backup, damaged copy kept | PASS | [1234, 7, True] |
 | Player is told the save was restored | PASS |  |
+| Home shows player level badge | PASS |  |
+| XP levels up the player and awards chests | PASS | level 1->4, chests {'bronze': 3, 'silver': 0, 'gold': 0} |
+| Missions screen lists 3 weekly missions | PASS |  |
+| Completed mission can be claimed for a chest | PASS |  |
+| Opening a chest gives coins and boosters | PASS |  |
+| Missed one day: streak kept for 50 coins, day-5 reward given | PASS | streak 5, day-5 toast True |
+| Victory screen shows XP gained | PASS |  |
 | No console errors | PASS |  |
 
 ### 4c. Playtest bot: `node test.js --bot 24`

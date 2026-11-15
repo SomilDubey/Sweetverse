@@ -16,13 +16,13 @@
   <div class="sub">Match &amp; Magic</div>
   <div id="loadBar"><div id="loadFill"></div></div>
   <div id="tapStart" class="hidden">Tap to start</div>
-  <div class="studio">An original prototype · v0.5</div>
+  <div class="studio">An original prototype · v0.6</div>
 </section>
 
 <section id="home" class="screen hidden">
   <div class="bg"></div><div class="sparkles"></div>
   <div class="homeTop">
-    <button class="who" id="profileBtn2" onclick="document.getElementById('profileBtn').click()"><span class="av0" id="homeAvatar">🧁</span><span id="homeName">Sweet Player</span></button>
+    <button class="who" id="profileBtn2" onclick="document.getElementById('profileBtn').click()"><span class="av0" id="homeAvatar">🧁</span><span id="homeName">Sweet Player</span><span class="lvWrap"><span id="lvBadge">Lv 1</span><span class="xpBar"><span id="xpFill"></span></span></span></button>
     <div class="pill">🪙 <span class="coinVal">0</span> · ⭐ <span id="homeStars">0</span></div>
   </div>
   <div class="logo">SWEET<br>VERSE</div>
@@ -33,6 +33,7 @@
     <button class="btn blue" id="shopBtn">🎒 Boosters</button>
     <button class="btn" id="profileBtn">🏆 Profile</button>
     <button class="btn blue" id="homeSettings">⚙️ Settings</button>
+    <button class="btn green wide" id="missionsBtn">📜 Missions &amp; chests<span class="dot hidden" id="missionDot"></span></button>
   </div>
 </section>
 
@@ -95,6 +96,7 @@
 </section>
 
 <div id="modal" class="hidden"></div>
+<script>/*META*/</script>
 <script>/*ENGINE*/</script>
 <script>/*LEVELS*/</script>
 <script>/*UI*/</script>

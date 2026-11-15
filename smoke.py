@@ -1,5 +1,6 @@
 # SWEETVERSE browser test – 2026-11-14 v0.3. Real input on a phone-size viewport.
 # 2026-11-15 v0.4: finale, crates, fizz bombs, start boosters, tutorial hand
+# 2026-11-15 v0.6 phase 3: missions, chests, XP/levels, streak recovery
 # 2026-11-15 v0.5: save migration + corruption recovery, smart hint button, audio voice cap
 import asyncio, json
 from playwright.async_api import async_playwright
@@ -195,8 +196,48 @@ async def main():
         await pg.reload(); await pg.wait_for_timeout(600)
         st = await pg.evaluate("[__sv.S.profile.coins, __sv.S.progress.unlocked, Object.keys(localStorage).some(k=>k.startsWith('sv_corrupt_'))]")
         rec('Corrupted save: restored from backup, damaged copy kept', st==[1234,7,True], str(st))
-        await pg.click('#splash'); await pg.wait_for_timeout(2600)
-        rec('Player is told the save was restored', 'restored from the backup' in (await pg.evaluate("[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' ')")))
+        await pg.wait_for_selector('#tapStart:not(.hidden)', timeout=10000); await pg.click('#splash'); await pg.wait_for_timeout(1200)
+        try:
+            await pg.wait_for_function("[...document.querySelectorAll('.toast')].some(t=>t.textContent.includes('restored from the backup'))", timeout=6000); ok = True
+        except Exception: ok = False
+        rec('Player is told the save was restored', ok)
+        # ---- v0.6 phase 3 ----
+        await pg.wait_for_timeout(300)
+        rec('Home shows player level badge', (await pg.inner_text('#lvBadge')).startswith('Lv '))
+        lv0 = await pg.evaluate("__sv.M.levelFromXp(__sv.S.profile.xp).level")
+        await pg.evaluate("__sv.addXp(500)"); await pg.wait_for_timeout(300)
+        lv1 = await pg.evaluate("__sv.M.levelFromXp(__sv.S.profile.xp).level"); ch = await pg.evaluate("__sv.S.meta.chests")
+        rec('XP levels up the player and awards chests', lv1 > lv0 and sum(ch.values()) >= lv1 - lv0, f'level {lv0}->{lv1}, chests {ch}')
+        await pg.click('#missionsBtn'); await pg.wait_for_timeout(300)
+        rec('Missions screen lists 3 weekly missions', await pg.evaluate("document.querySelectorAll('#modal .mission').length")==3)
+        await pg.screenshot(path='shot_missions.png')
+        await pg.click('#modal .x')
+        await pg.evaluate("(()=>{const m=__sv.S.meta.missions.list[0]; __sv.S.stats[m.stat==='stars'?'wins':m.stat]=(__sv.S.stats[m.stat]||0)+m.target+5; if(m.stat==='stars'){for(let i=1;i<=30;i++)__sv.S.progress.stars[i]=3}})()")
+        before = await pg.evaluate("JSON.stringify(__sv.S.meta.chests)")
+        await pg.click('#missionsBtn'); await pg.wait_for_timeout(300)
+        await pg.click('#modal .mission button.green'); await pg.wait_for_timeout(400)
+        claimed = await pg.evaluate("__sv.S.meta.missions.list[0].claimed")
+        rec('Completed mission can be claimed for a chest', claimed and await pg.evaluate("JSON.stringify(__sv.S.meta.chests)") != before)
+        c0 = await pg.evaluate("__sv.S.profile.coins"); n0 = await pg.evaluate("Object.values(__sv.S.meta.chests).reduce((a,b)=>a+b,0)")
+        await pg.click('#modal .chestBtn:not([disabled])'); await pg.wait_for_timeout(1700); await pg.screenshot(path='shot_chest.png')
+        rec('Opening a chest gives coins and boosters', await pg.evaluate("__sv.S.profile.coins") > c0 and await pg.evaluate("Object.values(__sv.S.meta.chests).reduce((a,b)=>a+b,0)") == n0-1)
+        await pg.click('#modal .x'); await pg.wait_for_timeout(200)
+        # streak recovery: last claim 2 days ago, 4-day streak
+        await pg.evaluate("(()=>{const d=new Date();d.setDate(d.getDate()-2);__sv.S.daily={last:__sv.M.dayStr(d),streak:4};__sv.S.profile.coins=500})()")
+        sh0 = await pg.evaluate("__sv.S.inv.shuffle")
+        await pg.click('#dailyBtn'); await pg.wait_for_timeout(300); await pg.screenshot(path='shot_streak.png')
+        txt = await pg.inner_text('#modal')
+        await pg.click('#modal .btn.gold'); await pg.wait_for_timeout(300)
+        st = await pg.evaluate("__sv.S.daily.streak")
+        try:
+            await pg.wait_for_function("[...document.querySelectorAll('.toast')].some(t=>t.textContent.includes('Day 5 reward'))", timeout=12000); got5 = True
+        except Exception: got5 = False
+        rec('Missed one day: streak kept for 50 coins, day-5 reward given', 'Keep your 4-day streak' in txt and st==5 and got5, f'streak {st}, day-5 toast {got5}')
+        # XP shown after a win
+        await pg.evaluate("__sv.startLevel(1); __sv.game.score=99999; __sv.game.moves=1"); await pg.wait_for_timeout(500)
+        await pg.evaluate("(()=>{const m=__sv.game.findMove();__sv.doSwap(m[0],m[1])})()")
+        await pg.wait_for_selector('#modal .card', timeout=30000); await pg.wait_for_timeout(500)
+        rec('Victory screen shows XP gained', 'XP' in await pg.inner_text('#modal .coinLine'))
         rec('No console errors', not errs, '; '.join(errs)[:300])
         json.dump(R, open('browser-results.json','w'), indent=1)
         await b.close()

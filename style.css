@@ -326,3 +326,22 @@ body.lite .sparkles{display:none}
 body.reduced .pipCheer{animation:none}
 body.lite .impact,body.lite .starFly{display:none}
 body.lite .tile.land .candy{animation:none}
+
+/* ---- v0.6 phase 3 (2026-11-15): XP badge, missions, chests ---- */
+.lvWrap{display:flex;flex-direction:column;align-items:flex-start;margin-left:4px}
+#lvBadge{font-size:11px;font-weight:900;background:#ffd23f;color:#6b3a00;border-radius:8px;padding:1px 6px}
+.xpBar{display:block;width:60px;height:5px;border-radius:3px;background:rgba(255,255,255,.3);margin-top:2px;overflow:hidden}
+#xpFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#7ef0a8,#18b863)}
+.menuGrid .wide{grid-column:span 2}
+.mission{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:8px 10px;margin:6px 0;text-align:left;box-shadow:0 2px 0 #f0b6d4}
+.mission.claimed{opacity:.55}
+.mission .mi{font-size:26px}.mission .md{flex:1;display:flex;flex-direction:column;gap:3px}.mission small{opacity:.75}
+.mbar{height:8px;border-radius:5px;background:#f6d4e6;overflow:hidden}.mbar>div{height:100%;background:linear-gradient(90deg,#ff8cc0,#e8336e);border-radius:5px}
+.mbar.big{height:12px}
+.chestBtn{display:flex;flex-direction:column;align-items:center;gap:2px;border:2px solid #f0b6d4;background:#fff;border-radius:14px;padding:8px 12px;font-family:inherit;color:#5a1a4a;min-width:84px}
+.chestBtn span{font-size:30px}.chestBtn:disabled{opacity:.45}
+.chestOpen{font-size:72px;animation:chestShake .6s ease-in-out 2}
+@keyframes chestShake{25%{transform:rotate(-12deg) scale(1.1)}75%{transform:rotate(12deg) scale(1.1)}}
+.chestLoot{animation:popIn .4s 1.2s both}
+.xpGain{color:#18b863}
+body.reduced .chestOpen{animation:none}
